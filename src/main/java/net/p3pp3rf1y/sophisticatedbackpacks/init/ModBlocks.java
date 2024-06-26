@@ -1,37 +1,39 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.init;
 
-import net.minecraft.block.Block;
-import net.minecraft.tileentity.TileEntityType;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.RegistryObject;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.p3pp3rf1y.sophisticatedbackpacks.SophisticatedBackpacks;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackBlock;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackTileEntity;
+import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackBlockEntity;
+
+import java.util.function.Supplier;
 
 public class ModBlocks {
-	private static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, SophisticatedBackpacks.MOD_ID);
-	private static final DeferredRegister<TileEntityType<?>> TILE_ENTITIES = DeferredRegister.create(ForgeRegistries.TILE_ENTITIES, SophisticatedBackpacks.MOD_ID);
 
 	private ModBlocks() {}
 
-	public static final RegistryObject<BackpackBlock> BACKPACK = BLOCKS.register("backpack", BackpackBlock::new);
-	public static final RegistryObject<BackpackBlock> IRON_BACKPACK = BLOCKS.register("iron_backpack", BackpackBlock::new);
-	public static final RegistryObject<BackpackBlock> GOLD_BACKPACK = BLOCKS.register("gold_backpack", BackpackBlock::new);
-	public static final RegistryObject<BackpackBlock> DIAMOND_BACKPACK = BLOCKS.register("diamond_backpack", BackpackBlock::new);
-	public static final RegistryObject<BackpackBlock> NETHERITE_BACKPACK = BLOCKS.register("netherite_backpack", BackpackBlock::new);
+	public static final BackpackBlock BACKPACK = register("backpack", BackpackBlock::new);
+	public static final BackpackBlock IRON_BACKPACK = register("iron_backpack", BackpackBlock::new);
+	public static final BackpackBlock GOLD_BACKPACK = register("gold_backpack", BackpackBlock::new);
+	public static final BackpackBlock DIAMOND_BACKPACK = register("diamond_backpack", BackpackBlock::new);
+	public static final BackpackBlock NETHERITE_BACKPACK = register("netherite_backpack", () -> new BackpackBlock(1200));
 
 	@SuppressWarnings("ConstantConditions") //no datafixer type needed
-	public static final RegistryObject<TileEntityType<BackpackTileEntity>> BACKPACK_TILE_TYPE = TILE_ENTITIES.register("backpack", () ->
-			TileEntityType.Builder.of(BackpackTileEntity::new, BACKPACK.get(), IRON_BACKPACK.get(), GOLD_BACKPACK.get(), DIAMOND_BACKPACK.get(), NETHERITE_BACKPACK.get())
+	public static final BlockEntityType<BackpackBlockEntity> BACKPACK_TILE_TYPE = registerEntityType("backpack", () ->
+			BlockEntityType.Builder.of(BackpackBlockEntity::new, BACKPACK, IRON_BACKPACK, GOLD_BACKPACK, DIAMOND_BACKPACK, NETHERITE_BACKPACK)
 					.build(null));
 
-	public static void registerHandlers(IEventBus modBus) {
-		BLOCKS.register(modBus);
-		TILE_ENTITIES.register(modBus);
-		MinecraftForge.EVENT_BUS.addListener(EventPriority.LOWEST, BackpackBlock::playerInteract);
+	public static <T extends Block> T register(String id, Supplier<T> supplier) {
+		return Registry.register(BuiltInRegistries.BLOCK, SophisticatedBackpacks.getRL(id), supplier.get());
+	}
+	public static <T extends BlockEntityType<?>> T registerEntityType(String id, Supplier<T> supplier) {
+		return Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, SophisticatedBackpacks.getRL(id), supplier.get());
+	}
+
+	public static void registerEvents() {
+		UseBlockCallback.EVENT.register(BackpackBlock::playerInteract);
 	}
 }

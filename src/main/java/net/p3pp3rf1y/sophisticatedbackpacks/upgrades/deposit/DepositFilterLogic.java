@@ -1,11 +1,12 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.upgrades.deposit;
 
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.items.IItemHandler;
-import net.p3pp3rf1y.sophisticatedbackpacks.upgrades.FilterLogic;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.InventoryHelper;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.ItemStackKey;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.NBTHelper;
+import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.SlottedStorage;
+import net.minecraft.world.item.ItemStack;
+import net.p3pp3rf1y.sophisticatedcore.inventory.ItemStackKey;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.FilterLogic;
+import net.p3pp3rf1y.sophisticatedcore.util.InventoryHelper;
+import net.p3pp3rf1y.sophisticatedcore.util.NBTHelper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -42,7 +43,7 @@ public class DepositFilterLogic extends FilterLogic {
 		}
 	}
 
-	public void setInventory(IItemHandler inventory) {
+	public void setInventory(SlottedStorage<ItemVariant> inventory) {
 		inventoryFilterStacks = InventoryHelper.getUniqueStacks(inventory);
 	}
 

@@ -1,17 +1,18 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.upgrades.restock;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.TranslationTextComponent;
-import net.minecraftforge.items.IItemHandler;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.IBackpackWrapper;
+import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.SlottedStorage;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.p3pp3rf1y.sophisticatedbackpacks.api.IItemHandlerInteractionUpgrade;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.wrapper.FilteredItemHandler;
-import net.p3pp3rf1y.sophisticatedbackpacks.upgrades.ContentsFilterLogic;
-import net.p3pp3rf1y.sophisticatedbackpacks.upgrades.ContentsFilterType;
-import net.p3pp3rf1y.sophisticatedbackpacks.upgrades.IContentsFilteredUpgrade;
-import net.p3pp3rf1y.sophisticatedbackpacks.upgrades.UpgradeWrapperBase;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.InventoryHelper;
+import net.p3pp3rf1y.sophisticatedcore.api.IStorageWrapper;
+import net.p3pp3rf1y.sophisticatedcore.inventory.FilteredItemHandler;
+import net.p3pp3rf1y.sophisticatedcore.settings.memory.MemorySettingsCategory;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.ContentsFilterLogic;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.IContentsFilteredUpgrade;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeWrapperBase;
+import net.p3pp3rf1y.sophisticatedcore.util.InventoryHelper;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,9 +22,9 @@ public class RestockUpgradeWrapper extends UpgradeWrapperBase<RestockUpgradeWrap
 		implements IContentsFilteredUpgrade, IItemHandlerInteractionUpgrade {
 	private final ContentsFilterLogic filterLogic;
 
-	public RestockUpgradeWrapper(IBackpackWrapper backpackWrapper, ItemStack upgrade, Consumer<ItemStack> upgradeSaveHandler) {
+	public RestockUpgradeWrapper(IStorageWrapper backpackWrapper, ItemStack upgrade, Consumer<ItemStack> upgradeSaveHandler) {
 		super(backpackWrapper, upgrade, upgradeSaveHandler);
-		filterLogic = new ContentsFilterLogic(upgrade, upgradeSaveHandler, upgradeItem.getFilterSlotCount());
+		filterLogic = new ContentsFilterLogic(upgrade, upgradeSaveHandler, upgradeItem.getFilterSlotCount(), backpackWrapper::getInventoryHandler, backpackWrapper.getSettingsHandler().getTypeCategory(MemorySettingsCategory.class));
 	}
 
 	@Override
@@ -32,18 +33,14 @@ public class RestockUpgradeWrapper extends UpgradeWrapperBase<RestockUpgradeWrap
 	}
 
 	@Override
-	public void onHandlerInteract(IItemHandler itemHandler, PlayerEntity player) {
-		if (filterLogic.getFilterType() == ContentsFilterType.BACKPACK) {
-			filterLogic.refreshBackpackFilterStacks(backpackWrapper.getInventoryForUpgradeProcessing());
-		}
+	public void onHandlerInteract(SlottedStorage<ItemVariant> itemHandler, Player player) {
 		AtomicInteger stacksAdded = new AtomicInteger(0);
-
 		InventoryHelper.transfer(itemHandler,
-				new FilteredItemHandler<>(backpackWrapper.getInventoryForUpgradeProcessing(), Collections.singletonList(filterLogic), Collections.emptyList()),
-				s -> stacksAdded.incrementAndGet());
+				new FilteredItemHandler<>(storageWrapper.getInventoryForUpgradeProcessing(), Collections.singletonList(filterLogic), Collections.emptyList()),
+				s -> stacksAdded.incrementAndGet(), null);
 
 		int stacksRestocked = stacksAdded.get();
 		String translKey = stacksRestocked > 0 ? "gui.sophisticatedbackpacks.status.stacks_restocked" : "gui.sophisticatedbackpacks.status.nothing_to_restock";
-		player.displayClientMessage(new TranslationTextComponent(translKey, stacksRestocked), true);
+		player.displayClientMessage(Component.translatable(translKey, stacksRestocked), true);
 	}
 }

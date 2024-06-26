@@ -4,13 +4,16 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.minecraft.client.resources.JsonReloadListener;
-import net.minecraft.profiler.IProfiler;
-import net.minecraft.resources.IResourceManager;
-import net.minecraft.util.JSONUtils;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.ModList;
+
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.util.profiling.ProfilerFiller;
 import net.p3pp3rf1y.sophisticatedbackpacks.SophisticatedBackpacks;
+import net.p3pp3rf1y.sophisticatedbackpacks.registry.tool.SwordRegistry;
 import net.p3pp3rf1y.sophisticatedbackpacks.registry.tool.ToolRegistry;
 
 import java.util.ArrayList;
@@ -21,7 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class RegistryLoader extends JsonReloadListener {
+public class RegistryLoader extends SimpleJsonResourceReloadListener implements IdentifiableResourceReloadListener {
 	private static final Map<String, IRegistryDataLoader> loaders = new HashMap<>();
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
@@ -32,6 +35,7 @@ public class RegistryLoader extends JsonReloadListener {
 	static {
 		registerParser(new ToolRegistry.BlockToolsLoader());
 		registerParser(new ToolRegistry.EntityToolsLoader());
+		registerParser(new SwordRegistry.SwordsLoader());
 	}
 
 	private final Map<ResourceLocation, String> loadedRegistries = new HashMap<>();
@@ -40,10 +44,15 @@ public class RegistryLoader extends JsonReloadListener {
 		super(GSON, "registry");
 	}
 
+	@Override
+	public ResourceLocation getFabricId() {
+		return SophisticatedBackpacks.getRL("registry_loader");
+	}
+
 	private final List<DependentFile> loadLater = new ArrayList<>();
 
 	@Override
-	protected void apply(Map<ResourceLocation, JsonElement> registries, IResourceManager resourceManagerIn, IProfiler profilerIn) {
+	protected void apply(Map<ResourceLocation, JsonElement> registries, ResourceManager resourceManagerIn, ProfilerFiller profilerIn) {
 		loaders.values().forEach(IRegistryDataLoader::clear);
 		registries.forEach(this::loadRegistry);
 		loadDependents(registries);
@@ -70,7 +79,7 @@ public class RegistryLoader extends JsonReloadListener {
 
 	private void logIncorrectDependencies() {
 		for (DependentFile dependentFile : loadLater) {
-			SophisticatedBackpacks.LOGGER.error("Non existent or circular load after dependencies in {} - {}", dependentFile::getName, () -> String.join(",", dependentFile.getDependencies()));
+			SophisticatedBackpacks.LOGGER.error("Non existent or circular load after dependencies in {} - {}", dependentFile.getName(), String.join(",", dependentFile.getDependencies()));
 		}
 	}
 
@@ -87,13 +96,13 @@ public class RegistryLoader extends JsonReloadListener {
 
 		Optional<IRegistryDataLoader> loader = getLoader(shortName, json);
 
-		if (!loader.isPresent()) {
+		if (loader.isEmpty()) {
 			SophisticatedBackpacks.LOGGER.error("No loader defined for {}", shortName);
 			return;
 		}
 
 		if (json.has("load_after")) {
-			Set<String> dependencies = JsonHelper.setFromJson(json.get("load_after"), e -> JSONUtils.convertToString(e, ""));
+			Set<String> dependencies = JsonHelper.setFromJson(json.get("load_after"), e -> GsonHelper.convertToString(e, ""));
 			if (!areDependenciesLoaded(dependencies)) {
 				loadLater.add(new DependentFile(name, dependencies));
 				SophisticatedBackpacks.LOGGER.debug("Registry data at {} depend on {} which are not all loaded, skipping for now.", name, dependencies);
@@ -103,11 +112,17 @@ public class RegistryLoader extends JsonReloadListener {
 
 		loadedRegistries.put(name, loader.get().getName());
 
-		if (isDisabled(json) || !isModLoaded(json)) {
+		String modId = null;
+		if (GsonHelper.isValidNode(json, "mod")) {
+			modId = GsonHelper.getAsString(json, "mod");
+		}
+
+		if (isDisabled(json) || (modId != null && !FabricLoader.getInstance().isModLoaded(modId))) {
 			return;
 		}
+
 		try {
-			loader.get().parse(json);
+			loader.get().parse(json, modId);
 			SophisticatedBackpacks.LOGGER.debug("Finished loading registry data for {}", name);
 		}
 		catch (Exception exception) {
@@ -124,18 +139,14 @@ public class RegistryLoader extends JsonReloadListener {
 		return true;
 	}
 
-	private boolean isModLoaded(JsonObject json) {
-		return !JSONUtils.isValidNode(json, "mod") || ModList.get().isLoaded(JSONUtils.getAsString(json, "mod"));
-	}
-
 	private boolean isDisabled(JsonObject json) {
-		return json.has("disabled") && JSONUtils.getAsBoolean(json, "disabled");
+		return json.has("disabled") && GsonHelper.getAsBoolean(json, "disabled");
 	}
 
 	private Optional<IRegistryDataLoader> getLoader(String fileName, JsonObject json) {
 		String parserName = fileName;
 		if (json.has("type")) {
-			parserName = JSONUtils.getAsString(json, "type");
+			parserName = GsonHelper.getAsString(json, "type");
 		}
 		return loaders.containsKey(parserName) ? Optional.of(loaders.get(parserName)) : Optional.empty();
 	}
