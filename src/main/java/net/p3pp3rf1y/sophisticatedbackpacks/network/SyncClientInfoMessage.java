@@ -1,54 +1,53 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.network;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.player.ClientPlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.network.PacketBuffer;
-import net.minecraftforge.fml.network.NetworkEvent;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.p3pp3rf1y.sophisticatedbackpacks.common.BackpackWrapperLookup;
 import net.p3pp3rf1y.sophisticatedbackpacks.common.gui.BackpackContainer;
+import net.p3pp3rf1y.sophisticatedcore.network.SimplePacketBase;
 
 import javax.annotation.Nullable;
-import java.util.function.Supplier;
 
-public class SyncClientInfoMessage {
+public class SyncClientInfoMessage extends SimplePacketBase {
 	private final int slotIndex;
 	@Nullable
-	private final CompoundNBT renderInfoNbt;
+	private final CompoundTag renderInfoNbt;
 	private final int columnsTaken;
 
-	public SyncClientInfoMessage(int slotNumber, @Nullable CompoundNBT renderInfoNbt, int columnsTaken) {
+	public SyncClientInfoMessage(int slotNumber, @Nullable CompoundTag renderInfoNbt, int columnsTaken) {
 		slotIndex = slotNumber;
 		this.renderInfoNbt = renderInfoNbt;
 		this.columnsTaken = columnsTaken;
 	}
 
-	public static void encode(SyncClientInfoMessage msg, PacketBuffer packetBuffer) {
-		packetBuffer.writeInt(msg.slotIndex);
-		packetBuffer.writeNbt(msg.renderInfoNbt);
-		packetBuffer.writeInt(msg.columnsTaken);
+	public SyncClientInfoMessage(FriendlyByteBuf buffer) { this(buffer.readInt(), buffer.readNbt(), buffer.readInt()); }
+
+	@Override
+	public void write(FriendlyByteBuf buffer) {
+		buffer.writeInt(this.slotIndex);
+		buffer.writeNbt(this.renderInfoNbt);
+		buffer.writeInt(this.columnsTaken);
 	}
 
-	public static SyncClientInfoMessage decode(PacketBuffer packetBuffer) {
-		return new SyncClientInfoMessage(packetBuffer.readInt(), packetBuffer.readNbt(), packetBuffer.readInt());
-	}
-
-	static void onMessage(SyncClientInfoMessage msg, Supplier<NetworkEvent.Context> contextSupplier) {
-		NetworkEvent.Context context = contextSupplier.get();
-		context.enqueueWork(() -> handleMessage(msg));
-		context.setPacketHandled(true);
-	}
-
-	private static void handleMessage(SyncClientInfoMessage msg) {
-		ClientPlayerEntity player = Minecraft.getInstance().player;
-		if (player == null || msg.renderInfoNbt == null || !(player.containerMenu instanceof BackpackContainer)) {
-			return;
-		}
-		ItemStack backpack = player.inventory.items.get(msg.slotIndex);
-		backpack.getCapability(CapabilityBackpackWrapper.getCapabilityInstance()).ifPresent(backpackWrapper -> {
-			backpackWrapper.getRenderInfo().deserializeFrom(msg.renderInfoNbt);
-			backpackWrapper.setColumnsTaken(msg.columnsTaken);
+	@Override
+	@Environment(EnvType.CLIENT)
+	public boolean handle(Context context) {
+		context.enqueueWork(() -> {
+			Player player = context.getClientPlayer();
+			if (player == null || renderInfoNbt == null || !(player.containerMenu instanceof BackpackContainer)) {
+				return;
+			}
+			ItemStack backpack = player.getInventory().items.get(slotIndex);
+			BackpackWrapperLookup.get(backpack).ifPresent(backpackWrapper -> {
+				backpackWrapper.getRenderInfo().deserializeFrom(renderInfoNbt);
+				backpackWrapper.setColumnsTaken(columnsTaken, false);
+			});
 		});
+		return true;
 	}
+
 }

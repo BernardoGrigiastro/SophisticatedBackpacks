@@ -1,56 +1,52 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.network;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.INBT;
-import net.minecraft.network.PacketBuffer;
-import net.minecraftforge.fml.network.NetworkEvent;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackStorage;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.wrapper.BackpackInventoryHandler;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.wrapper.BackpackUpgradeHandler;
+import net.p3pp3rf1y.sophisticatedcore.inventory.InventoryHandler;
+import net.p3pp3rf1y.sophisticatedcore.network.SimplePacketBase;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.UpgradeHandler;
 
-import javax.annotation.Nullable;
 import java.util.UUID;
-import java.util.function.Supplier;
 
-public class RequestBackpackInventoryContentsMessage {
+public class RequestBackpackInventoryContentsMessage extends SimplePacketBase {
 	private final UUID backpackUuid;
 
 	public RequestBackpackInventoryContentsMessage(UUID backpackUuid) {
 		this.backpackUuid = backpackUuid;
 	}
 
-	public static void encode(RequestBackpackInventoryContentsMessage msg, PacketBuffer packetBuffer) {
-		packetBuffer.writeUUID(msg.backpackUuid);
+	public RequestBackpackInventoryContentsMessage(FriendlyByteBuf buffer) { this(buffer.readUUID()); }
+
+	@Override
+	public void write(FriendlyByteBuf buffer) {
+		buffer.writeUUID(this.backpackUuid);
 	}
 
-	public static RequestBackpackInventoryContentsMessage decode(PacketBuffer packetBuffer) {
-		return new RequestBackpackInventoryContentsMessage(packetBuffer.readUUID());
-	}
+	@Override
+	public boolean handle(Context context) {
+		context.enqueueWork(() -> {
+			ServerPlayer player = context.getSender();
+			if (player == null) {
+				return;
+			}
 
-	static void onMessage(RequestBackpackInventoryContentsMessage msg, Supplier<NetworkEvent.Context> contextSupplier) {
-		NetworkEvent.Context context = contextSupplier.get();
-		context.enqueueWork(() -> handleMessage(context.getSender(), msg));
-		context.setPacketHandled(true);
-	}
+			CompoundTag backpackContents = BackpackStorage.get().getOrCreateBackpackContents(backpackUuid);
 
-	private static void handleMessage(@Nullable ServerPlayerEntity player, RequestBackpackInventoryContentsMessage msg) {
-		if (player == null) {
-			return;
-		}
+			CompoundTag inventoryContents = new CompoundTag();
+			Tag inventoryNbt = backpackContents.get(InventoryHandler.INVENTORY_TAG);
+			if (inventoryNbt != null) {
+				inventoryContents.put(InventoryHandler.INVENTORY_TAG, inventoryNbt);
+			}
+			Tag upgradeNbt = backpackContents.get(UpgradeHandler.UPGRADE_INVENTORY_TAG);
+			if (upgradeNbt != null) {
+				inventoryContents.put(UpgradeHandler.UPGRADE_INVENTORY_TAG, upgradeNbt);
+			}
 
-		CompoundNBT backpackContents = BackpackStorage.get().getOrCreateBackpackContents(msg.backpackUuid);
-
-		CompoundNBT inventoryContents = new CompoundNBT();
-		INBT inventoryNbt = backpackContents.get(BackpackInventoryHandler.INVENTORY_TAG);
-		if (inventoryNbt != null) {
-			inventoryContents.put(BackpackInventoryHandler.INVENTORY_TAG, inventoryNbt);
-		}
-		INBT upgradeNbt = backpackContents.get(BackpackUpgradeHandler.UPGRADE_INVENTORY_TAG);
-		if (upgradeNbt != null) {
-			inventoryContents.put(BackpackUpgradeHandler.UPGRADE_INVENTORY_TAG, upgradeNbt);
-		}
-
-		PacketHandler.sendToClient(player, new BackpackContentsMessage(msg.backpackUuid, inventoryContents));
+			SBPPacketHandler.sendToClient(player, new BackpackContentsMessage(backpackUuid, inventoryContents));
+		});
+		return true;
 	}
 }

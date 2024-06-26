@@ -1,447 +1,618 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.data;
 
-import net.minecraft.block.Blocks;
-import net.minecraft.data.CustomRecipeBuilder;
-import net.minecraft.data.DataGenerator;
-import net.minecraft.data.IFinishedRecipe;
-import net.minecraft.data.RecipeProvider;
-import net.minecraft.data.SmithingRecipeBuilder;
-import net.minecraft.item.Items;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.Tags;
-import net.p3pp3rf1y.sophisticatedbackpacks.crafting.BackpackDyeRecipe;
-import net.p3pp3rf1y.sophisticatedbackpacks.crafting.BackpackUpgradeRecipe;
-import net.p3pp3rf1y.sophisticatedbackpacks.crafting.ShapeBasedRecipeBuilder;
-import net.p3pp3rf1y.sophisticatedbackpacks.crafting.SmithingBackpackUpgradeRecipe;
-import net.p3pp3rf1y.sophisticatedbackpacks.crafting.UpgradeNextTierRecipe;
+import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider;
+import net.fabricmc.fabric.api.tag.convention.v1.ConventionalItemTags;
+import net.minecraft.advancements.critereon.InventoryChangeTrigger;
+import net.minecraft.advancements.critereon.ItemPredicate;
+import net.minecraft.data.recipes.FinishedRecipe;
+import net.minecraft.data.recipes.LegacyUpgradeRecipeBuilder;
+import net.minecraft.data.recipes.RecipeCategory;
+import net.minecraft.data.recipes.SpecialRecipeBuilder;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.block.Blocks;
+import net.p3pp3rf1y.sophisticatedbackpacks.SophisticatedBackpacks;
 import net.p3pp3rf1y.sophisticatedbackpacks.init.ModItems;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.RegistryHelper;
+import net.p3pp3rf1y.sophisticatedcore.api.Tags;
+import net.p3pp3rf1y.sophisticatedcore.crafting.ShapeBasedRecipeBuilder;
+import net.p3pp3rf1y.sophisticatedcore.init.ModRecipes;
+import net.p3pp3rf1y.sophisticatedcore.util.RegistryHelper;
 
 import java.util.function.Consumer;
 
-import static net.p3pp3rf1y.sophisticatedbackpacks.util.RegistryHelper.getModRegistryName;
+public class SBPRecipeProvider extends FabricRecipeProvider {
+	private static final String HAS_UPGRADE_BASE = "has_upgrade_base";
+	private static final String HAS_SMELTING_UPGRADE = "has_smelting_upgrade";
 
-public class SBPRecipeProvider extends RecipeProvider {
-
-	private static final String HAS_UPGRADE_BASE_CRITERION = "has_upgrade_base";
-
-	public SBPRecipeProvider(DataGenerator generatorIn) {
-		super(generatorIn);
+	public SBPRecipeProvider(FabricDataOutput output) {
+		super(output);
 	}
 
 	@Override
-	protected void buildShapelessRecipes(Consumer<IFinishedRecipe> consumer) {
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.BACKPACK.get())
-				.patternLine("SLS")
-				.patternLine("SCS")
-				.patternLine("LLL")
-				.key('L', Tags.Items.LEATHER)
-				.key('C', Tags.Items.CHESTS_WOODEN)
-				.key('S', Tags.Items.STRING)
-				.addCriterion("has_leather", has(Tags.Items.LEATHER))
-				.build(consumer);
+	public void buildRecipes(Consumer<FinishedRecipe> consumer) {
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.BACKPACK, ModItems.BASIC_BACKPACK_RECIPE_SERIALIZER)
+				.pattern("SLS")
+				.pattern("SCS")
+				.pattern("LLL")
+				.define('L', net.minecraft.world.item.Items.LEATHER)
+				.define('C', Tags.Items.WOODEN_CHESTS)
+				.define('S', net.minecraft.world.item.Items.STRING)
+				.unlockedBy("has_leather", hasLeather())
+				.save(consumer);
 
-		CustomRecipeBuilder.special(BackpackDyeRecipe.SERIALIZER).save(consumer, getModRegistryName("backpack_dye"));
+		SpecialRecipeBuilder.special(ModItems.BACKPACK_DYE_RECIPE_SERIALIZER).save(consumer, SophisticatedBackpacks.getRegistryName("backpack_dye"));
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.DIAMOND_BACKPACK.get(), BackpackUpgradeRecipe.SERIALIZER)
-				.patternLine("DDD")
-				.patternLine("DBD")
-				.patternLine("DDD")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('B', ModItems.GOLD_BACKPACK.get())
-				.addCriterion("has_gold_backpack", has(ModItems.GOLD_BACKPACK.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.DIAMOND_BACKPACK, ModItems.BACKPACK_UPGRADE_RECIPE_SERIALIZER)
+				.pattern("DDD")
+				.pattern("DBD")
+				.pattern("DDD")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('B', ModItems.GOLD_BACKPACK)
+				.unlockedBy("has_gold_backpack", has(ModItems.GOLD_BACKPACK))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.GOLD_BACKPACK.get(), BackpackUpgradeRecipe.SERIALIZER)
-				.patternLine("GGG")
-				.patternLine("GBG")
-				.patternLine("GGG")
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('B', ModItems.IRON_BACKPACK.get())
-				.addCriterion("has_iron_backpack", has(ModItems.IRON_BACKPACK.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.GOLD_BACKPACK, ModItems.BACKPACK_UPGRADE_RECIPE_SERIALIZER)
+				.pattern("GGG")
+				.pattern("GBG")
+				.pattern("GGG")
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('B', ModItems.IRON_BACKPACK)
+				.unlockedBy("has_iron_backpack", has(ModItems.IRON_BACKPACK))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.IRON_BACKPACK.get(), BackpackUpgradeRecipe.SERIALIZER)
-				.patternLine("III")
-				.patternLine("IBI")
-				.patternLine("III")
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('B', ModItems.BACKPACK.get())
-				.addCriterion("has_backpack", has(ModItems.BACKPACK.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.IRON_BACKPACK, ModItems.BACKPACK_UPGRADE_RECIPE_SERIALIZER)
+				.pattern("III")
+				.pattern("IBI")
+				.pattern("III")
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('B', ModItems.BACKPACK)
+				.unlockedBy("has_backpack", has(ModItems.BACKPACK))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.PICKUP_UPGRADE.get())
-				.patternLine(" P ")
-				.patternLine("SBS")
-				.patternLine("RRR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('S', Tags.Items.STRING)
-				.key('P', Blocks.STICKY_PISTON)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.PICKUP_UPGRADE)
+				.pattern(" P ")
+				.pattern("SBS")
+				.pattern("RRR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('S', net.minecraft.world.item.Items.STRING)
+				.define('P', Blocks.STICKY_PISTON)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.UPGRADE_BASE.get())
-				.patternLine("SIS")
-				.patternLine("ILI")
-				.patternLine("SIS")
-				.key('L', Tags.Items.LEATHER)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('S', Tags.Items.STRING)
-				.addCriterion("has_leather", has(Tags.Items.LEATHER))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.UPGRADE_BASE)
+				.pattern("SIS")
+				.pattern("ILI")
+				.pattern("SIS")
+				.define('L', net.minecraft.world.item.Items.LEATHER)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('S', net.minecraft.world.item.Items.STRING)
+				.unlockedBy("has_leather", hasLeather())
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_PICKUP_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GPG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('P', ModItems.PICKUP_UPGRADE.get())
-				.addCriterion("has_pickup_upgrade", has(ModItems.PICKUP_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_PICKUP_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GPG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('P', ModItems.PICKUP_UPGRADE)
+				.unlockedBy("has_pickup_upgrade", has(ModItems.PICKUP_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.FILTER_UPGRADE.get())
-				.patternLine("RSR")
-				.patternLine("SBS")
-				.patternLine("RSR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('S', Tags.Items.STRING)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.FILTER_UPGRADE)
+				.pattern("RSR")
+				.pattern("SBS")
+				.pattern("RSR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('S', net.minecraft.world.item.Items.STRING)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_FILTER_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("GPG")
-				.patternLine("RRR")
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('P', ModItems.FILTER_UPGRADE.get())
-				.addCriterion("has_filter_upgrade", has(ModItems.FILTER_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_FILTER_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("GPG")
+				.pattern("RRR")
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('P', ModItems.FILTER_UPGRADE)
+				.unlockedBy("has_filter_upgrade", has(ModItems.FILTER_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.MAGNET_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("EIE")
-				.patternLine("IPI")
-				.patternLine("R L")
-				.key('E', Tags.Items.ENDER_PEARLS)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('L', Tags.Items.GEMS_LAPIS)
-				.key('P', ModItems.PICKUP_UPGRADE.get())
-				.addCriterion("has_pickup_upgrade", has(ModItems.PICKUP_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.MAGNET_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("EIE")
+				.pattern("IPI")
+				.pattern("R L")
+				.define('E', net.minecraft.world.item.Items.ENDER_PEARL)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('L', ConventionalItemTags.LAPIS)
+				.define('P', ModItems.PICKUP_UPGRADE)
+				.unlockedBy("has_pickup_upgrade", has(ModItems.PICKUP_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_MAGNET_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("EIE")
-				.patternLine("IPI")
-				.patternLine("R L")
-				.key('E', Tags.Items.ENDER_PEARLS)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('L', Tags.Items.GEMS_LAPIS)
-				.key('P', ModItems.ADVANCED_PICKUP_UPGRADE.get())
-				.addCriterion("has_advanced_pickup_upgrade", has(ModItems.ADVANCED_PICKUP_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_MAGNET_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("EIE")
+				.pattern("IPI")
+				.pattern("R L")
+				.define('E', net.minecraft.world.item.Items.ENDER_PEARL)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('L', ConventionalItemTags.LAPIS)
+				.define('P', ModItems.ADVANCED_PICKUP_UPGRADE)
+				.unlockedBy("has_advanced_pickup_upgrade", has(ModItems.ADVANCED_PICKUP_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_MAGNET_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GMG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('M', ModItems.MAGNET_UPGRADE.get())
-				.addCriterion("has_magnet_upgrade", has(ModItems.MAGNET_UPGRADE.get()))
-				.build(consumer, new ResourceLocation(RegistryHelper.getModRegistryName("advanced_magnet_upgrade_from_basic")));
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_MAGNET_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GMG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('M', ModItems.MAGNET_UPGRADE)
+				.unlockedBy("has_magnet_upgrade", has(ModItems.MAGNET_UPGRADE))
+				.save(consumer, new ResourceLocation(SophisticatedBackpacks.getRegistryName("advanced_magnet_upgrade_from_basic")));
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.FEEDING_UPGRADE.get())
-				.patternLine(" C ")
-				.patternLine("ABM")
-				.patternLine(" E ")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('C', Items.GOLDEN_CARROT)
-				.key('A', Items.GOLDEN_APPLE)
-				.key('M', Items.GLISTERING_MELON_SLICE)
-				.key('E', Tags.Items.ENDER_PEARLS)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.FEEDING_UPGRADE)
+				.pattern(" C ")
+				.pattern("ABM")
+				.pattern(" E ")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', net.minecraft.world.item.Items.GOLDEN_CARROT)
+				.define('A', net.minecraft.world.item.Items.GOLDEN_APPLE)
+				.define('M', net.minecraft.world.item.Items.GLISTERING_MELON_SLICE)
+				.define('E', net.minecraft.world.item.Items.ENDER_PEARL)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.COMPACTING_UPGRADE.get())
-				.patternLine("IPI")
-				.patternLine("PBP")
-				.patternLine("RPR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('P', Items.PISTON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.COMPACTING_UPGRADE)
+				.pattern("IPI")
+				.pattern("PBP")
+				.pattern("RPR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('P', net.minecraft.world.item.Items.PISTON)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_COMPACTING_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GCG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('C', ModItems.COMPACTING_UPGRADE.get())
-				.addCriterion("has_compacting_upgrade", has(ModItems.COMPACTING_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_COMPACTING_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GCG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('C', ModItems.COMPACTING_UPGRADE)
+				.unlockedBy("has_compacting_upgrade", has(ModItems.COMPACTING_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.VOID_UPGRADE.get())
-				.patternLine(" E ")
-				.patternLine("OBO")
-				.patternLine("ROR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('E', Tags.Items.ENDER_PEARLS)
-				.key('O', Tags.Items.OBSIDIAN)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.VOID_UPGRADE)
+				.pattern(" E ")
+				.pattern("OBO")
+				.pattern("ROR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('E', net.minecraft.world.item.Items.ENDER_PEARL)
+				.define('O', net.minecraft.world.item.Items.OBSIDIAN)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_VOID_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GVG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('V', ModItems.VOID_UPGRADE.get())
-				.addCriterion("has_void_upgrade", has(ModItems.VOID_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_VOID_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GVG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('V', ModItems.VOID_UPGRADE)
+				.unlockedBy("has_void_upgrade", has(ModItems.VOID_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.RESTOCK_UPGRADE.get())
-				.patternLine(" P ")
-				.patternLine("IBI")
-				.patternLine("RCR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('C', Tags.Items.CHESTS_WOODEN)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('P', Items.STICKY_PISTON)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.RESTOCK_UPGRADE)
+				.pattern(" P ")
+				.pattern("IBI")
+				.pattern("RCR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', Tags.Items.WOODEN_CHESTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('P', net.minecraft.world.item.Items.STICKY_PISTON)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_RESTOCK_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GVG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('V', ModItems.RESTOCK_UPGRADE.get())
-				.addCriterion("has_restock_upgrade", has(ModItems.RESTOCK_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_RESTOCK_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GVG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('V', ModItems.RESTOCK_UPGRADE)
+				.unlockedBy("has_restock_upgrade", has(ModItems.RESTOCK_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.DEPOSIT_UPGRADE.get())
-				.patternLine(" P ")
-				.patternLine("IBI")
-				.patternLine("RCR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('C', Tags.Items.CHESTS_WOODEN)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('P', Items.PISTON)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.DEPOSIT_UPGRADE)
+				.pattern(" P ")
+				.pattern("IBI")
+				.pattern("RCR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', Tags.Items.WOODEN_CHESTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('P', net.minecraft.world.item.Items.PISTON)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_DEPOSIT_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GVG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('V', ModItems.DEPOSIT_UPGRADE.get())
-				.addCriterion("has_deposit_upgrade", has(ModItems.DEPOSIT_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_DEPOSIT_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GVG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('V', ModItems.DEPOSIT_UPGRADE)
+				.unlockedBy("has_deposit_upgrade", has(ModItems.DEPOSIT_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.REFILL_UPGRADE.get())
-				.patternLine(" E ")
-				.patternLine("IBI")
-				.patternLine("RCR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('C', Tags.Items.CHESTS_WOODEN)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('E', Tags.Items.ENDER_PEARLS)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.REFILL_UPGRADE)
+				.pattern(" E ")
+				.pattern("IBI")
+				.pattern("RCR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', Tags.Items.WOODEN_CHESTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('E', net.minecraft.world.item.Items.ENDER_PEARL)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.INCEPTION_UPGRADE.get())
-				.patternLine("ESE")
-				.patternLine("DBD")
-				.patternLine("EDE")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('S', Tags.Items.NETHER_STARS)
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('E', Items.ENDER_EYE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_REFILL_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GFG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('F', ModItems.REFILL_UPGRADE)
+				.unlockedBy("has_refill_upgrade", has(ModItems.REFILL_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.EVERLASTING_UPGRADE.get())
-				.patternLine("CSC")
-				.patternLine("SBS")
-				.patternLine("CSC")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('S', Tags.Items.NETHER_STARS)
-				.key('C', Items.END_CRYSTAL)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.INCEPTION_UPGRADE)
+				.pattern("ESE")
+				.pattern("DBD")
+				.pattern("EDE")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('S', net.minecraft.world.item.Items.NETHER_STAR)
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('E', net.minecraft.world.item.Items.ENDER_EYE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.SMELTING_UPGRADE.get())
-				.patternLine("RIR")
-				.patternLine("IBI")
-				.patternLine("RFR")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('F', Items.FURNACE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.EVERLASTING_UPGRADE)
+				.pattern("CSC")
+				.pattern("SBS")
+				.pattern("CSC")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('S', net.minecraft.world.item.Items.NETHER_STAR)
+				.define('C', net.minecraft.world.item.Items.END_CRYSTAL)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.AUTO_SMELTING_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("DHD")
-				.patternLine("RSH")
-				.patternLine("GHG")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('H', Items.HOPPER)
-				.key('S', ModItems.SMELTING_UPGRADE.get())
-				.addCriterion("has_smelting_upgrade", has(ModItems.SMELTING_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.SMELTING_UPGRADE)
+				.pattern("RIR")
+				.pattern("IBI")
+				.pattern("RFR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('F', net.minecraft.world.item.Items.FURNACE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.CRAFTING_UPGRADE.get())
-				.patternLine(" T ")
-				.patternLine("IBI")
-				.patternLine(" C ")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('C', Tags.Items.CHESTS)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('T', Items.CRAFTING_TABLE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.AUTO_SMELTING_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("DHD")
+				.pattern("RSH")
+				.pattern("GHG")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('H', net.minecraft.world.item.Items.HOPPER)
+				.define('S', ModItems.SMELTING_UPGRADE)
+				.unlockedBy(HAS_SMELTING_UPGRADE, has(ModItems.SMELTING_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.STONECUTTER_UPGRADE.get())
-				.patternLine(" S ")
-				.patternLine("IBI")
-				.patternLine(" R ")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('S', Items.STONECUTTER)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.CRAFTING_UPGRADE)
+				.pattern(" T ")
+				.pattern("IBI")
+				.pattern(" C ")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', ConventionalItemTags.CHESTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('T', net.minecraft.world.item.Items.CRAFTING_TABLE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.STACK_UPGRADE_TIER_1.get())
-				.patternLine("III")
-				.patternLine("IBI")
-				.patternLine("III")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('I', Tags.Items.STORAGE_BLOCKS_IRON)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.STONECUTTER_UPGRADE)
+				.pattern(" S ")
+				.pattern("IBI")
+				.pattern(" R ")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('S', net.minecraft.world.item.Items.STONECUTTER)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.STACK_UPGRADE_TIER_2.get())
-				.patternLine("GGG")
-				.patternLine("GSG")
-				.patternLine("GGG")
-				.key('S', ModItems.STACK_UPGRADE_TIER_1.get())
-				.key('G', Tags.Items.STORAGE_BLOCKS_GOLD)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.STACK_UPGRADE_TIER_1.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.STACK_UPGRADE_TIER_1)
+				.pattern("III")
+				.pattern("IBI")
+				.pattern("III")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('I', net.minecraft.world.item.Items.IRON_BLOCK)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.STACK_UPGRADE_TIER_3.get())
-				.patternLine("DDD")
-				.patternLine("DSD")
-				.patternLine("DDD")
-				.key('S', ModItems.STACK_UPGRADE_TIER_2.get())
-				.key('D', Tags.Items.STORAGE_BLOCKS_DIAMOND)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.STACK_UPGRADE_TIER_2.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.STACK_UPGRADE_TIER_2)
+				.pattern("GGG")
+				.pattern("GSG")
+				.pattern("GGG")
+				.define('S', ModItems.STACK_UPGRADE_TIER_1)
+				.define('G', net.minecraft.world.item.Items.GOLD_BLOCK)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.STACK_UPGRADE_TIER_1))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.STACK_UPGRADE_TIER_4.get())
-				.patternLine("NNN")
-				.patternLine("NSN")
-				.patternLine("NNN")
-				.key('S', ModItems.STACK_UPGRADE_TIER_3.get())
-				.key('N', Tags.Items.STORAGE_BLOCKS_NETHERITE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.STACK_UPGRADE_TIER_3.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.STACK_UPGRADE_TIER_3)
+				.pattern("DDD")
+				.pattern("DSD")
+				.pattern("DDD")
+				.define('S', ModItems.STACK_UPGRADE_TIER_2)
+				.define('D', net.minecraft.world.item.Items.DIAMOND_BLOCK)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.STACK_UPGRADE_TIER_2))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.JUKEBOX_UPGRADE.get())
-				.patternLine(" J ")
-				.patternLine("IBI")
-				.patternLine(" R ")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('J', Items.JUKEBOX)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.STACK_UPGRADE_TIER_4)
+				.pattern("NNN")
+				.pattern("NSN")
+				.pattern("NNN")
+				.define('S', ModItems.STACK_UPGRADE_TIER_3)
+				.define('N', net.minecraft.world.item.Items.NETHERITE_BLOCK)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.STACK_UPGRADE_TIER_3))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.TOOL_SWAPPER_UPGRADE.get())
-				.patternLine("RWR")
-				.patternLine("PBA")
-				.patternLine("ISI")
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.key('S', Items.WOODEN_SHOVEL)
-				.key('P', Items.WOODEN_PICKAXE)
-				.key('A', Items.WOODEN_AXE)
-				.key('W', Items.WOODEN_SWORD)
-				.key('I', Tags.Items.INGOTS_IRON)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.JUKEBOX_UPGRADE)
+				.pattern(" J ")
+				.pattern("IBI")
+				.pattern(" R ")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('J', net.minecraft.world.item.Items.JUKEBOX)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_TOOL_SWAPPER_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GVG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('V', ModItems.TOOL_SWAPPER_UPGRADE.get())
-				.addCriterion("has_tool_swapper_upgrade", has(ModItems.TOOL_SWAPPER_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.TOOL_SWAPPER_UPGRADE)
+				.pattern("RWR")
+				.pattern("PBA")
+				.pattern("ISI")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('S', net.minecraft.world.item.Items.WOODEN_SHOVEL)
+				.define('P', net.minecraft.world.item.Items.WOODEN_PICKAXE)
+				.define('A', net.minecraft.world.item.Items.WOODEN_AXE)
+				.define('W', net.minecraft.world.item.Items.WOODEN_SWORD)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.TANK_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("GGG")
-				.patternLine("GBG")
-				.patternLine("GGG")
-				.key('G', Tags.Items.GLASS)
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_TOOL_SWAPPER_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GVG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('V', ModItems.TOOL_SWAPPER_UPGRADE)
+				.unlockedBy("has_tool_swapper_upgrade", has(ModItems.TOOL_SWAPPER_UPGRADE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.ADVANCED_FEEDING_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine(" D ")
-				.patternLine("GVG")
-				.patternLine("RRR")
-				.key('D', Tags.Items.GEMS_DIAMOND)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('R', Tags.Items.DUSTS_REDSTONE)
-				.key('V', ModItems.FEEDING_UPGRADE.get())
-				.addCriterion("has_feeding_upgrade", has(ModItems.FEEDING_UPGRADE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.TANK_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("GGG")
+				.pattern("GBG")
+				.pattern("GGG")
+				.define('G', ConventionalItemTags.GLASS_BLOCKS)
+				.define('B', ModItems.UPGRADE_BASE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
 
-		ShapeBasedRecipeBuilder.shapedRecipe(ModItems.BATTERY_UPGRADE.get(), UpgradeNextTierRecipe.SERIALIZER)
-				.patternLine("GRG")
-				.patternLine("RBR")
-				.patternLine("GRG")
-				.key('R', Tags.Items.STORAGE_BLOCKS_REDSTONE)
-				.key('G', Tags.Items.INGOTS_GOLD)
-				.key('B', ModItems.UPGRADE_BASE.get())
-				.addCriterion(HAS_UPGRADE_BASE_CRITERION, has(ModItems.UPGRADE_BASE.get()))
-				.build(consumer);
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_FEEDING_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern(" D ")
+				.pattern("GVG")
+				.pattern("RRR")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('V', ModItems.FEEDING_UPGRADE)
+				.unlockedBy("has_feeding_upgrade", has(ModItems.FEEDING_UPGRADE))
+				.save(consumer);
 
-		new SmithingRecipeBuilder(SmithingBackpackUpgradeRecipe.SERIALIZER, Ingredient.of(ModItems.DIAMOND_BACKPACK.get()),
-				Ingredient.of(Items.NETHERITE_INGOT), ModItems.NETHERITE_BACKPACK.get())
-				.unlocks("has_diamond_backpack", has(ModItems.DIAMOND_BACKPACK.get()))
-				.save(consumer, RegistryHelper.getItemKey(ModItems.NETHERITE_BACKPACK.get()));
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.BATTERY_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("GRG")
+				.pattern("RBR")
+				.pattern("GRG")
+				.define('R', net.minecraft.world.item.Items.REDSTONE_BLOCK)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('B', ModItems.UPGRADE_BASE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.PUMP_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("GUG")
+				.pattern("PBS")
+				.pattern("GUG")
+				.define('U', net.minecraft.world.item.Items.BUCKET)
+				.define('G', ConventionalItemTags.GLASS_BLOCKS)
+				.define('P', net.minecraft.world.item.Items.PISTON)
+				.define('S', net.minecraft.world.item.Items.STICKY_PISTON)
+				.define('B', ModItems.UPGRADE_BASE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ADVANCED_PUMP_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("DID")
+				.pattern("GPG")
+				.pattern("RRR")
+				.define('I', net.minecraft.world.item.Items.DISPENSER)
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('P', ModItems.PUMP_UPGRADE)
+				.unlockedBy("has_pump_upgrade", has(ModItems.PUMP_UPGRADE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.XP_PUMP_UPGRADE)
+				.pattern("RER")
+				.pattern("CPC")
+				.pattern("RER")
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('E', net.minecraft.world.item.Items.ENDER_EYE)
+				.define('C', net.minecraft.world.item.Items.EXPERIENCE_BOTTLE)
+				.define('P', ModItems.ADVANCED_PUMP_UPGRADE)
+				.unlockedBy("has_advanced_pump_upgrade", has(ModItems.ADVANCED_PUMP_UPGRADE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.SMOKING_UPGRADE)
+				.pattern("RIR")
+				.pattern("IBI")
+				.pattern("RSR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('S', net.minecraft.world.item.Items.SMOKER)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.SMOKING_UPGRADE)
+				.pattern(" L ")
+				.pattern("LSL")
+				.pattern(" L ")
+				.define('S', ModItems.SMELTING_UPGRADE)
+				.define('L', net.minecraft.tags.ItemTags.LOGS)
+				.unlockedBy(HAS_SMELTING_UPGRADE, has(ModItems.SMELTING_UPGRADE))
+				.save(consumer, SophisticatedBackpacks.getRL("smoking_upgrade_from_smelting_upgrade"));
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.AUTO_SMOKING_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("DHD")
+				.pattern("RSH")
+				.pattern("GHG")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('H', net.minecraft.world.item.Items.HOPPER)
+				.define('S', ModItems.SMOKING_UPGRADE)
+				.unlockedBy("has_smoking_upgrade", has(ModItems.SMOKING_UPGRADE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.AUTO_SMOKING_UPGRADE)
+				.pattern(" L ")
+				.pattern("LSL")
+				.pattern(" L ")
+				.define('S', ModItems.AUTO_SMELTING_UPGRADE)
+				.define('L', net.minecraft.tags.ItemTags.LOGS)
+				.unlockedBy("has_auto_smelting_upgrade", has(ModItems.AUTO_SMELTING_UPGRADE))
+				.save(consumer, SophisticatedBackpacks.getRL("auto_smoking_upgrade_from_auto_smelting_upgrade"));
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.BLASTING_UPGRADE)
+				.pattern("RIR")
+				.pattern("IBI")
+				.pattern("RFR")
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('F', net.minecraft.world.item.Items.BLAST_FURNACE)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.BLASTING_UPGRADE)
+				.pattern("III")
+				.pattern("ISI")
+				.pattern("TTT")
+				.define('S', ModItems.SMELTING_UPGRADE)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('T', net.minecraft.world.item.Items.SMOOTH_STONE)
+				.unlockedBy(HAS_SMELTING_UPGRADE, has(ModItems.SMELTING_UPGRADE))
+				.save(consumer, SophisticatedBackpacks.getRL("blasting_upgrade_from_smelting_upgrade"));
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.AUTO_BLASTING_UPGRADE, ModRecipes.UPGRADE_NEXT_TIER_SERIALIZER)
+				.pattern("DHD")
+				.pattern("RSH")
+				.pattern("GHG")
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('G', ConventionalItemTags.GOLD_INGOTS)
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('H', net.minecraft.world.item.Items.HOPPER)
+				.define('S', ModItems.BLASTING_UPGRADE)
+				.unlockedBy("has_blasting_upgrade", has(ModItems.BLASTING_UPGRADE))
+				.save(consumer);
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.AUTO_BLASTING_UPGRADE)
+				.pattern("III")
+				.pattern("ISI")
+				.pattern("TTT")
+				.define('S', ModItems.AUTO_SMELTING_UPGRADE)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('T', net.minecraft.world.item.Items.SMOOTH_STONE)
+				.unlockedBy("has_auto_smelting_upgrade", has(ModItems.AUTO_SMELTING_UPGRADE))
+				.save(consumer, SophisticatedBackpacks.getRL("auto_blasting_upgrade_from_auto_smelting_upgrade"));
+
+		ShapeBasedRecipeBuilder.shaped(RecipeCategory.MISC, ModItems.ANVIL_UPGRADE)
+				.pattern("ADA")
+				.pattern("IBI")
+				.pattern(" C ")
+				.define('A', net.minecraft.world.item.Items.ANVIL)
+				.define('D', ConventionalItemTags.DIAMONDS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('B', ModItems.UPGRADE_BASE)
+				.define('C', Tags.Items.WOODEN_CHESTS)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE))
+				.save(consumer);
+
+		new LegacyUpgradeRecipeBuilder(ModItems.SMITHING_BACKPACK_UPGRADE_RECIPE_SERIALIZER, Ingredient.of(ModItems.DIAMOND_BACKPACK),
+				Ingredient.of(net.minecraft.world.item.Items.NETHERITE_INGOT), RecipeCategory.MISC, ModItems.NETHERITE_BACKPACK)
+				.unlocks("has_diamond_backpack", has(ModItems.DIAMOND_BACKPACK))
+				.save(consumer, RegistryHelper.getItemKey(ModItems.NETHERITE_BACKPACK));
+
+		// addChippedUpgradeRecipes(consumer);
+	}
+
+	/*private static void addChippedUpgradeRecipes(Consumer<FinishedRecipe> consumer) {
+		addChippedUpgradeRecipe(consumer, ChippedCompat.BOTANIST_WORKBENCH_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.BOTANIST_WORKBENCH.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.GLASSBLOWER_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.GLASSBLOWER.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.CARPENTERS_TABLE_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.CARPENTERS_TABLE.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.LOOM_TABLE_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.LOOM_TABLE.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.MASON_TABLE_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.MASON_TABLE.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.ALCHEMY_BENCH_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.ALCHEMY_BENCH.get());
+		addChippedUpgradeRecipe(consumer, ChippedCompat.TINKERING_TABLE_UPGRADE.get(), earth.terrarium.chipped.common.registry.ModBlocks.TINKERING_TABLE.get());
+	}
+
+	private static void addChippedUpgradeRecipe(Consumer<FinishedRecipe> consumer, BlockTransformationUpgradeItem upgrade, Block workbench) {
+		ShapeBasedRecipeBuilder.shaped(upgrade)
+				.pattern(" W ")
+				.pattern("IBI")
+				.pattern(" R ")
+				.define('B', ModItems.UPGRADE_BASE.get())
+				.define('R', ConventionalItemTags.REDSTONE_DUSTS)
+				.define('I', ConventionalItemTags.IRON_INGOTS)
+				.define('W', workbench)
+				.unlockedBy(HAS_UPGRADE_BASE, has(ModItems.UPGRADE_BASE.get()))
+				.condition(new ModLoadedCondition(CompatModIds.CHIPPED))
+				.save(consumer);
+	}*/
+
+	private static InventoryChangeTrigger.TriggerInstance hasLeather() {
+		return inventoryTrigger(ItemPredicate.Builder.item().of(net.minecraft.world.item.Items.LEATHER).build());
 	}
 }

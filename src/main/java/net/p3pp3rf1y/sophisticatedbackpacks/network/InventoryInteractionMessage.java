@@ -1,18 +1,15 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.network;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.util.Direction;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fml.network.NetworkEvent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.p3pp3rf1y.sophisticatedbackpacks.util.InventoryInteractionHelper;
 import net.p3pp3rf1y.sophisticatedbackpacks.util.PlayerInventoryProvider;
+import net.p3pp3rf1y.sophisticatedcore.network.SimplePacketBase;
 
-import javax.annotation.Nullable;
-import java.util.function.Supplier;
-
-public class InventoryInteractionMessage {
+public class InventoryInteractionMessage extends SimplePacketBase {
 	private final BlockPos pos;
 	private final Direction face;
 
@@ -21,29 +18,29 @@ public class InventoryInteractionMessage {
 		this.face = face;
 	}
 
-	public static void encode(InventoryInteractionMessage msg, PacketBuffer packetBuffer) {
-		packetBuffer.writeLong(msg.pos.asLong());
-		packetBuffer.writeEnum(msg.face);
+	public InventoryInteractionMessage(FriendlyByteBuf buffer) { this(buffer.readBlockPos(), buffer.readEnum(Direction.class)); }
+
+	@Override
+	public void write(FriendlyByteBuf buffer) {
+		buffer.writeLong(this.pos.asLong());
+		buffer.writeEnum(this.face);
 	}
 
-	public static InventoryInteractionMessage decode(PacketBuffer packetBuffer) {
-		return new InventoryInteractionMessage(BlockPos.of(packetBuffer.readLong()), packetBuffer.readEnum(Direction.class));
-	}
+	@Override
+	public boolean handle(Context context) {
+		context.enqueueWork(() -> {
+			ServerPlayer sender = context.getSender();
+			if (sender == null) {
+				return;
+			}
 
-	static void onMessage(InventoryInteractionMessage msg, Supplier<NetworkEvent.Context> contextSupplier) {
-		NetworkEvent.Context context = contextSupplier.get();
-		context.enqueueWork(() -> handleMessage(msg, context.getSender()));
-		context.setPacketHandled(true);
-	}
-
-	private static void handleMessage(InventoryInteractionMessage msg, @Nullable ServerPlayerEntity sender) {
-		if (sender == null) {
-			return;
-		}
-		PlayerInventoryProvider.runOnBackpacks(sender, (backpack, inventoryName, slot) -> {
-			InventoryInteractionHelper.tryInventoryInteraction(msg.pos, sender.level, backpack, msg.face, sender);
-			sender.swing(Hand.MAIN_HAND, true);
-			return true;
+			PlayerInventoryProvider.get().runOnBackpacks(sender, (backpack, inventoryName, identifier, slot) -> {
+				InventoryInteractionHelper.tryInventoryInteraction(pos, sender.getLevel(), backpack, face, sender);
+				sender.swing(InteractionHand.MAIN_HAND, true);
+				return true;
+			});
 		});
+		return true;
 	}
+
 }

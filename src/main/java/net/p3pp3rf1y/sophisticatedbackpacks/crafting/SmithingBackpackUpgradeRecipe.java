@@ -1,33 +1,44 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.crafting;
 
-import net.minecraft.inventory.IInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.IRecipeSerializer;
-import net.minecraft.item.crafting.SmithingRecipe;
-import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
-import net.minecraftforge.fml.common.thread.SidedThreadGroups;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.LegacyUpgradeRecipe;
+import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem;
+import net.p3pp3rf1y.sophisticatedbackpacks.common.BackpackWrapperLookup;
+import net.p3pp3rf1y.sophisticatedbackpacks.init.ModItems;
+import net.p3pp3rf1y.sophisticatedcore.SophisticatedCore;
+import net.p3pp3rf1y.sophisticatedcore.crafting.IWrapperRecipe;
+import net.p3pp3rf1y.sophisticatedcore.crafting.RecipeWrapperSerializer;
 
-import java.util.Objects;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 
-public class SmithingBackpackUpgradeRecipe extends SmithingRecipe implements IWrapperRecipe<SmithingRecipe> {
-	public static final Serializer SERIALIZER = new Serializer();
-	private final SmithingRecipe compose;
+@SuppressWarnings("removal")
+public class SmithingBackpackUpgradeRecipe extends LegacyUpgradeRecipe implements IWrapperRecipe<LegacyUpgradeRecipe> {
+	public static final Set<ResourceLocation> REGISTERED_RECIPES = new LinkedHashSet<>();
+	private final LegacyUpgradeRecipe compose;
 
-	public SmithingBackpackUpgradeRecipe(SmithingRecipe compose) {
-		super(compose.getId(), Objects.requireNonNull(ObfuscationReflectionHelper.getPrivateValue(SmithingRecipe.class, compose, "field_234837_a_")),
-				Objects.requireNonNull(ObfuscationReflectionHelper.getPrivateValue(SmithingRecipe.class, compose, "field_234838_b_")), compose.getResultItem());
+	public SmithingBackpackUpgradeRecipe(LegacyUpgradeRecipe compose) {
+		super(compose.getId(), compose.base, compose.addition, compose.result);
 		this.compose = compose;
+		REGISTERED_RECIPES.add(compose.getId());
 	}
 
 	@Override
-	public ItemStack assemble(IInventory inv) {
-		ItemStack upgradedBackpack = getCraftingResult().copy();
-		if (Thread.currentThread().getThreadGroup() == SidedThreadGroups.SERVER) {
-			getBackpack(inv).flatMap(backpack -> Optional.ofNullable(backpack.getTag())).ifPresent(tag -> upgradedBackpack.setTag(tag.copy()));
-			upgradedBackpack.getCapability(CapabilityBackpackWrapper.getCapabilityInstance())
+	public boolean isSpecial() {
+		return true;
+	}
+
+	@Override
+	public ItemStack assemble(Container inventory, RegistryAccess registryManager) {
+		ItemStack upgradedBackpack = result.copy();
+		if (SophisticatedCore.getCurrentServer() != null && SophisticatedCore.getCurrentServer().isSameThread()) {
+			getBackpack(inventory).flatMap(backpack -> Optional.ofNullable(backpack.getTag())).ifPresent(tag -> upgradedBackpack.setTag(tag.copy()));
+			BackpackWrapperLookup.get(upgradedBackpack)
 					.ifPresent(wrapper -> {
 						BackpackItem backpackItem = ((BackpackItem) upgradedBackpack.getItem());
 						wrapper.setSlotNumbers(backpackItem.getNumberOfSlots(), backpackItem.getNumberOfUpgradeSlots());
@@ -36,11 +47,7 @@ public class SmithingBackpackUpgradeRecipe extends SmithingRecipe implements IWr
 		return upgradedBackpack;
 	}
 
-	private ItemStack getCraftingResult() {
-		return Objects.requireNonNull(ObfuscationReflectionHelper.getPrivateValue(SmithingRecipe.class, this, "field_234839_c_"));
-	}
-
-	private Optional<ItemStack> getBackpack(IInventory inv) {
+	private Optional<ItemStack> getBackpack(Container inv) {
 		ItemStack slotStack = inv.getItem(0);
 		if (slotStack.getItem() instanceof BackpackItem) {
 			return Optional.of(slotStack);
@@ -49,18 +56,18 @@ public class SmithingBackpackUpgradeRecipe extends SmithingRecipe implements IWr
 	}
 
 	@Override
-	public Serializer getSerializer() {
-		return SERIALIZER;
+	public RecipeSerializer<?> getSerializer() {
+		return ModItems.SMITHING_BACKPACK_UPGRADE_RECIPE_SERIALIZER;
 	}
 
 	@Override
-	public SmithingRecipe getCompose() {
+	public LegacyUpgradeRecipe getCompose() {
 		return compose;
 	}
 
-	public static class Serializer extends RecipeWrapperSerializer<SmithingRecipe, SmithingBackpackUpgradeRecipe> {
+	public static class Serializer extends RecipeWrapperSerializer<LegacyUpgradeRecipe, SmithingBackpackUpgradeRecipe> {
 		public Serializer() {
-			super(SmithingBackpackUpgradeRecipe::new, IRecipeSerializer.SMITHING);
+			super(SmithingBackpackUpgradeRecipe::new, RecipeSerializer.SMITHING);
 		}
 	}
 }
