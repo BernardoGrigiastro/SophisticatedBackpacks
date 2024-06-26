@@ -1,60 +1,65 @@
 package net.p3pp3rf1y.sophisticatedbackpacks;
 
-import net.minecraft.entity.EntityType;
-import net.minecraft.item.Item;
-import net.minecraft.loot.LootTables;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.p3pp3rf1y.sophisticatedbackpacks.client.gui.SortButtonsPosition;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.RegistryHelper;
 import org.apache.commons.lang3.tuple.Pair;
 
-import javax.annotation.Nullable;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraftforge.api.ModLoadingContext;
+import net.minecraftforge.api.fml.event.config.ModConfigEvents;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
+import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.FilteredUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.battery.BatteryUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.cooking.AutoCookingUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.cooking.CookingUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.magnet.MagnetUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.pump.PumpUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.stack.StackUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.tank.TankUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.voiding.VoidUpgradeConfig;
+import net.p3pp3rf1y.sophisticatedcore.upgrades.xppump.XpPumpUpgradeConfig;
+
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
+@SuppressWarnings("java:S1192") //don't complain about repeated config names if two upgrades happen to have the same setting
 public class Config {
-	private static final String SETTINGS = " Settings";
+	private static final Map<ModConfig.Type, BaseConfig> CONFIGS = new EnumMap<>(ModConfig.Type.class);
+
+	private static final String REGISTRY_NAME_MATCHER = "([a-z0-9_.-]+:[a-z0-9_/.-]+)";
 
 	private Config() {}
 
-	public static final Client CLIENT;
-	public static final ForgeConfigSpec CLIENT_SPEC;
-	public static final Common COMMON;
-	public static final ForgeConfigSpec COMMON_SPEC;
+	public static Common CLIENT = register(Common::new, ModConfig.Type.CLIENT);
+	public static Server COMMON = register(Server::new, ModConfig.Type.SERVER);
 
-	static {
-		final Pair<Client, ForgeConfigSpec> clientSpec = new ForgeConfigSpec.Builder().configure(Client::new);
-		CLIENT_SPEC = clientSpec.getRight();
-		CLIENT = clientSpec.getLeft();
+	public static class BaseConfig {
+		public ForgeConfigSpec specification;
 
-		final Pair<Common, ForgeConfigSpec> commonSpec = new ForgeConfigSpec.Builder().configure(Common::new);
-		COMMON_SPEC = commonSpec.getRight();
-		COMMON = commonSpec.getLeft();
+		public void onConfigLoad() { }
+		public void onConfigReload() { }
 	}
 
-	public static class Client {
-		public final ForgeConfigSpec.EnumValue<SortButtonsPosition> sortButtonsPosition;
-		public final ForgeConfigSpec.BooleanValue playButtonSound;
-
-		Client(ForgeConfigSpec.Builder builder) {
-			builder.comment("Client Settings").push("client");
-			sortButtonsPosition = builder.comment("Positions where sort buttons can display to help with conflicts with controls from other mods").defineEnum("sortButtonsPosition", SortButtonsPosition.TITLE_LINE_RIGHT);
-			playButtonSound = builder.comment("Whether click sound should play when custom buttons are clicked in backpack gui").define("playButtonSound", true);
-			builder.pop();
-		}
-	}
-
-	public static class Common {
-		public final EnabledItems enabledItems;
+	public static class Server extends BaseConfig {
+		public final DisallowedItems disallowedItems;
+		public final NoInteractionBlocks noInteractionBlocks;
+		public final NoConnectionBlocks noConnectionBlocks;
 		public final BackpackConfig leatherBackpack;
 		public final BackpackConfig ironBackpack;
 		public final BackpackConfig goldBackpack;
@@ -73,28 +78,44 @@ public class Config {
 		public final FilteredUpgradeConfig pickupUpgrade;
 		public final FilteredUpgradeConfig advancedPickupUpgrade;
 		public final FilteredUpgradeConfig refillUpgrade;
+		public final FilteredUpgradeConfig advancedRefillUpgrade;
 		public final FilteredUpgradeConfig restockUpgrade;
 		public final FilteredUpgradeConfig advancedRestockUpgrade;
-		public final FilteredUpgradeConfig voidUpgrade;
-		public final FilteredUpgradeConfig advancedVoidUpgrade;
-		public final SmeltingUpgradeConfig smeltingUpgrade;
-		public final AutoSmeltingUpgradeConfig autoSmeltingUpgrade;
+		public final VoidUpgradeConfig voidUpgrade;
+		public final VoidUpgradeConfig advancedVoidUpgrade;
+		public final CookingUpgradeConfig smeltingUpgrade;
+		public final CookingUpgradeConfig smokingUpgrade;
+		public final CookingUpgradeConfig blastingUpgrade;
+		public final AutoCookingUpgradeConfig autoSmeltingUpgrade;
+		public final AutoCookingUpgradeConfig autoSmokingUpgrade;
+		public final AutoCookingUpgradeConfig autoBlastingUpgrade;
 		public final InceptionUpgradeConfig inceptionUpgrade;
 		public final EntityBackpackAdditionsConfig entityBackpackAdditions;
-		public final ForgeConfigSpec.BooleanValue chestLootEnabled;
-		public final ToolSwapperUpgradeConfig toolSwapperUpgrade;
+		public final ForgeConfigSpec.BooleanValue itemFluidHandlerEnabled;
+		public final ForgeConfigSpec.BooleanValue allowOpeningOtherPlayerBackpacks;
+		public final ForgeConfigSpec.BooleanValue itemDisplayDisabled;
+		public final ForgeConfigSpec.BooleanValue tickDedupeLogicDisabled;
+		public final ForgeConfigSpec.BooleanValue canBePlacedInContainerItems;
+		public final FilteredUpgradeConfig toolSwapperUpgrade;
 		public final TankUpgradeConfig tankUpgrade;
 		public final BatteryUpgradeConfig batteryUpgrade;
+		public final StackUpgradeConfig stackUpgrade;
+		public final PumpUpgradeConfig pumpUpgrade;
+		public final XpPumpUpgradeConfig xpPumpUpgrade;
+		public final NerfsConfig nerfsConfig;
 
-		@SuppressWarnings("unused") //need the Event parameter for forge reflection to understand what event this listens to
-		public void onConfigReload(ModConfig.Reloading event) {
-			enabledItems.enabledMap.clear();
+		@Override
+		public void onConfigReload() {
+			disallowedItems.initialized = false;
+			stackUpgrade.clearNonStackableItems();
 		}
 
-		Common(ForgeConfigSpec.Builder builder) {
-			builder.comment("Common Settings").push("common");
+		Server(ForgeConfigSpec.Builder builder) {
+			builder.comment("Server Settings").push("server");
 
-			enabledItems = new EnabledItems(builder);
+			disallowedItems = new DisallowedItems(builder);
+			noInteractionBlocks = new NoInteractionBlocks(builder);
+			noConnectionBlocks = new NoConnectionBlocks(builder);
 
 			leatherBackpack = new BackpackConfig(builder, "Leather", 27, 1);
 			ironBackpack = new BackpackConfig(builder, "Iron", 54, 2);
@@ -115,32 +136,62 @@ public class Config {
 			pickupUpgrade = new FilteredUpgradeConfig(builder, "Pickup Upgrade", "pickupUpgrade", 9, 3);
 			advancedPickupUpgrade = new FilteredUpgradeConfig(builder, "Advanced Pickup Upgrade", "advancedPickupUpgrade", 16, 4);
 			refillUpgrade = new FilteredUpgradeConfig(builder, "Refill Upgrade", "refillUpgrade", 6, 3);
+			advancedRefillUpgrade = new FilteredUpgradeConfig(builder, "Advanced Refill Upgrade", "advancedRefillUpgrade", 12, 4);
 			restockUpgrade = new FilteredUpgradeConfig(builder, "Restock Upgrade", "restockUpgrade", 9, 3);
 			advancedRestockUpgrade = new FilteredUpgradeConfig(builder, "Advanced Restock Upgrade", "advancedRestockUpgrade", 16, 4);
-			voidUpgrade = new FilteredUpgradeConfig(builder, "Void Upgrade", "voidUpgrade", 9, 3);
-			advancedVoidUpgrade = new FilteredUpgradeConfig(builder, "Advanced Void Upgrade", "advancedVoidUpgrade", 16, 4);
-			smeltingUpgrade = new SmeltingUpgradeConfig(builder);
-			autoSmeltingUpgrade = new AutoSmeltingUpgradeConfig(builder);
+			voidUpgrade = new VoidUpgradeConfig(builder, "Void Upgrade", "voidUpgrade", 9, 3);
+			advancedVoidUpgrade = new VoidUpgradeConfig(builder, "Advanced Void Upgrade", "advancedVoidUpgrade", 16, 4);
+			stackUpgrade = new StackUpgradeConfig(builder);
+			smeltingUpgrade = CookingUpgradeConfig.getInstance(builder, "Smelting Upgrade", "smeltingUpgrade");
+			smokingUpgrade = CookingUpgradeConfig.getInstance(builder, "Smoking Upgrade", "smokingUpgrade");
+			blastingUpgrade = CookingUpgradeConfig.getInstance(builder, "Blasting Upgrade", "blastingUpgrade");
+			autoSmeltingUpgrade = new AutoCookingUpgradeConfig(builder, "Auto-Smelting Upgrade", "autoSmeltingUpgrade");
+			autoSmokingUpgrade = new AutoCookingUpgradeConfig(builder, "Auto-Smoking Upgrade", "autoSmokingUpgrade");
+			autoBlastingUpgrade = new AutoCookingUpgradeConfig(builder, "Auto-Blasting Upgrade", "autoBlastingUpgrade");
 			inceptionUpgrade = new InceptionUpgradeConfig(builder);
-			toolSwapperUpgrade = new ToolSwapperUpgradeConfig(builder);
+			toolSwapperUpgrade = new FilteredUpgradeConfig(builder, "Tool Swapper Upgrade", "toolSwapperUpgrade", 8, 4);
 			tankUpgrade = new TankUpgradeConfig(builder);
 			batteryUpgrade = new BatteryUpgradeConfig(builder);
+			pumpUpgrade = new PumpUpgradeConfig(builder);
+			xpPumpUpgrade = new XpPumpUpgradeConfig(builder);
 			entityBackpackAdditions = new EntityBackpackAdditionsConfig(builder);
+			nerfsConfig = new NerfsConfig(builder);
 
-			chestLootEnabled = builder.comment("Turns on/off loot added to various vanilla chest loot tables").define("chestLootEnabled", true);
+			itemFluidHandlerEnabled = builder.comment("Turns on/off item fluid handler of backpack in its item form. There are some dupe bugs caused by default fluid handling implementation that manifest when backpack is drained / filled in its item form in another mod's tank and the only way to prevent them is disallowing drain/fill in item form altogether").define("itemFluidHandlerEnabled", true);
+			allowOpeningOtherPlayerBackpacks = builder.comment("Determines whether player can right click on backpack that another player is wearing to open it. If off will turn off that capability for everyone and remove related settings from backpack.").define("allowOpeningOtherPlayerBackpacks", true);
+			itemDisplayDisabled = builder.comment("Allows disabling item display settings. Primarily in cases where custom backpack model doesn't support showing the item. (Requires game restart to take effect)").define("itemDisplayDisabled", false);
+			tickDedupeLogicDisabled = builder.comment("Allows disabling logic that dedupes backpacks with the same UUID in players' inventory. This is here to allow turning off the logic just in case it would be causing performance issues.").define("tickDedupeLogicDisabled", false);
+			canBePlacedInContainerItems = builder.comment("Determines if backpacks can be placed in container items (those that check for return value of canFitInsideContainerItems)").define("canBePlacedInContainerItems", false);
 
 			builder.pop();
 		}
 
+		public static class NerfsConfig {
+			public final ForgeConfigSpec.BooleanValue tooManyBackpacksSlowness;
+			public final ForgeConfigSpec.IntValue maxNumberOfBackpacks;
+			public final ForgeConfigSpec.DoubleValue slownessLevelsPerAdditionalBackpack;
+			public final ForgeConfigSpec.BooleanValue onlyWornBackpackTriggersUpgrades;
+			public NerfsConfig(ForgeConfigSpec.Builder builder) {
+				builder.push("nerfs");
+				tooManyBackpacksSlowness = builder.comment("Determines if too many backpacks in player's inventory cause slowness to the player").define("tooManyBackpacksSlowness", false);
+				maxNumberOfBackpacks = builder.comment("Maximum number of backpacks in player's inventory that will not cause slowness").defineInRange("maxNumberOfBackpacks", 3, 1, 27);
+				slownessLevelsPerAdditionalBackpack = builder.comment("Ratio of slowness levels per every backpack above the maximum number allowed. (number of backpacks above the max gets multiplied by this number and ceiled)").defineInRange("slownessLevelsPerAdditionalBackpack", 1, 0.1, 5);
+				onlyWornBackpackTriggersUpgrades = builder.comment("Determines if active upgrades will only work in the backpack that's worn by the player. Active upgrades are for example magnet, pickup, cooking, feeding upgrades.").define("onlyWornBackpackTriggersUpgrades", false);
+				builder.pop();
+			}
+
+		}
 		public static class EntityBackpackAdditionsConfig {
-			private static final String REGISTRY_NAME_MATCHER = "([a-z1-9_.-]+:[a-z1-9_/.-]+)";
-			private static final String ENTITY_LOOT_MATCHER = "([a-z1-9_.-]+:[a-z1-9_/.-]+)\\|(null|[a-z1-9_.-]+:[a-z1-9/_.-]+)";
+			private static final String ENTITY_LOOT_MATCHER = "([a-z0-9_.-]+:[a-z0-9_/.-]+)\\|(null|[a-z0-9_.-]+:[a-z0-9/_.-]+)";
 			public final ForgeConfigSpec.DoubleValue chance;
 			public final ForgeConfigSpec.BooleanValue addLoot;
 			public final ForgeConfigSpec.BooleanValue buffWithPotionEffects;
 			public final ForgeConfigSpec.BooleanValue buffHealth;
 			public final ForgeConfigSpec.BooleanValue equipWithArmor;
 			public final ForgeConfigSpec.BooleanValue playJukebox;
+			public final ForgeConfigSpec.BooleanValue dropToFakePlayers;
+			public final ForgeConfigSpec.DoubleValue backpackDropChance;
+			public final ForgeConfigSpec.DoubleValue lootingChanceIncreasePerLevel;
 			public final ForgeConfigSpec.ConfigValue<List<? extends String>> entityLootTableList;
 			public final ForgeConfigSpec.ConfigValue<List<? extends String>> discBlockList;
 			@Nullable
@@ -161,6 +212,9 @@ public class Config {
 				discBlockList = builder.comment("List of music discs that are not supposed to be played by entities")
 						.defineList("discBlockList", this::getDefaultDiscBlockList, mapping -> ((String) mapping).matches(REGISTRY_NAME_MATCHER));
 				playJukebox = builder.comment("Turns on/off a chance that the entity that wears backpack gets jukebox upgrade and plays a music disc.").define("playJukebox", true);
+				dropToFakePlayers = builder.comment("Determines whether backpack drops to fake players if killed by them in addition to real ones that it always drops to").define("dropToFakePlayers", false);
+				backpackDropChance = builder.comment("Chance of mob dropping backpack when killed by player").defineInRange("backpackDropChance", 0.5, 0, 1);
+				lootingChanceIncreasePerLevel = builder.comment("Chance increase per looting level of mob dropping backpack").defineInRange("lootingChanceIncreasePerLevel", 0.15, 0, 0.3);
 				builder.pop();
 			}
 
@@ -188,7 +242,7 @@ public class Config {
 					String entityRegistryName = entityLoot[0];
 					String lootTableName = entityLoot[1];
 
-					EntityType<?> entityType = ForgeRegistries.ENTITIES.getValue(new ResourceLocation(entityRegistryName));
+					EntityType<?> entityType = Registry.ENTITY_TYPE.get(new ResourceLocation(entityRegistryName));
 					if (entityType != null) {
 						entityLootTables.put(entityType, lootTableName.equals("null") ? null : new ResourceLocation(lootTableName));
 					}
@@ -203,69 +257,29 @@ public class Config {
 			}
 
 			private List<String> getDefaultEntityLootTableList() {
-				return getDefaultEntityLootMapping().entrySet().stream().map(e -> e.getKey().getRegistryName() + "|" + e.getValue()).collect(Collectors.toList());
+				return getDefaultEntityLootMapping().entrySet().stream().map(e -> Registry.ENTITY_TYPE.getKey(e.getKey()) + "|" + e.getValue()).collect(Collectors.toList());
 			}
 
 			private Map<EntityType<?>, ResourceLocation> getDefaultEntityLootMapping() {
 				Map<EntityType<?>, ResourceLocation> mapping = new LinkedHashMap<>();
-				mapping.put(EntityType.CREEPER, LootTables.DESERT_PYRAMID);
-				mapping.put(EntityType.DROWNED, LootTables.SHIPWRECK_TREASURE);
-				mapping.put(EntityType.ENDERMAN, LootTables.END_CITY_TREASURE);
-				mapping.put(EntityType.EVOKER, LootTables.WOODLAND_MANSION);
-				mapping.put(EntityType.HUSK, LootTables.DESERT_PYRAMID);
-				mapping.put(EntityType.PIGLIN, LootTables.BASTION_BRIDGE);
-				mapping.put(EntityType.PIGLIN_BRUTE, LootTables.BASTION_TREASURE);
-				mapping.put(EntityType.PILLAGER, LootTables.PILLAGER_OUTPOST);
-				mapping.put(EntityType.SKELETON, LootTables.SIMPLE_DUNGEON);
-				mapping.put(EntityType.STRAY, LootTables.IGLOO_CHEST);
-				mapping.put(EntityType.VEX, LootTables.WOODLAND_MANSION);
-				mapping.put(EntityType.VINDICATOR, LootTables.WOODLAND_MANSION);
-				mapping.put(EntityType.WITCH, LootTables.BURIED_TREASURE);
-				mapping.put(EntityType.WITHER_SKELETON, LootTables.NETHER_BRIDGE);
-				mapping.put(EntityType.ZOMBIE, LootTables.SIMPLE_DUNGEON);
-				mapping.put(EntityType.ZOMBIE_VILLAGER, LootTables.VILLAGE_ARMORER);
-				mapping.put(EntityType.ZOMBIFIED_PIGLIN, LootTables.BASTION_OTHER);
+				mapping.put(EntityType.CREEPER, BuiltInLootTables.DESERT_PYRAMID);
+				mapping.put(EntityType.DROWNED, BuiltInLootTables.SHIPWRECK_TREASURE);
+				mapping.put(EntityType.ENDERMAN, BuiltInLootTables.END_CITY_TREASURE);
+				mapping.put(EntityType.EVOKER, BuiltInLootTables.WOODLAND_MANSION);
+				mapping.put(EntityType.HUSK, BuiltInLootTables.DESERT_PYRAMID);
+				mapping.put(EntityType.PIGLIN, BuiltInLootTables.BASTION_BRIDGE);
+				mapping.put(EntityType.PIGLIN_BRUTE, BuiltInLootTables.BASTION_TREASURE);
+				mapping.put(EntityType.PILLAGER, BuiltInLootTables.PILLAGER_OUTPOST);
+				mapping.put(EntityType.SKELETON, BuiltInLootTables.SIMPLE_DUNGEON);
+				mapping.put(EntityType.STRAY, BuiltInLootTables.IGLOO_CHEST);
+				mapping.put(EntityType.VEX, BuiltInLootTables.WOODLAND_MANSION);
+				mapping.put(EntityType.VINDICATOR, BuiltInLootTables.WOODLAND_MANSION);
+				mapping.put(EntityType.WITCH, BuiltInLootTables.BURIED_TREASURE);
+				mapping.put(EntityType.WITHER_SKELETON, BuiltInLootTables.NETHER_BRIDGE);
+				mapping.put(EntityType.ZOMBIE, BuiltInLootTables.SIMPLE_DUNGEON);
+				mapping.put(EntityType.ZOMBIE_VILLAGER, BuiltInLootTables.VILLAGE_ARMORER);
+				mapping.put(EntityType.ZOMBIFIED_PIGLIN, BuiltInLootTables.BASTION_OTHER);
 				return mapping;
-			}
-		}
-
-		public static class ToolSwapperUpgradeConfig {
-			public final ForgeConfigSpec.IntValue slotsInRow;
-
-			protected ToolSwapperUpgradeConfig(ForgeConfigSpec.Builder builder) {
-				builder.comment("Tool Swapper Upgrade" + SETTINGS).push("toolSwapperUpgrade");
-				slotsInRow = builder.comment("Number of tool filter slots displayed in a row").defineInRange("slotsInRow", 4, 1, 6);
-				builder.pop();
-			}
-		}
-
-		public static class TankUpgradeConfig {
-			public final ForgeConfigSpec.IntValue capacityPerSlotRow;
-			public final ForgeConfigSpec.DoubleValue stackMultiplierRatio;
-			public final ForgeConfigSpec.IntValue autoFillDrainContainerCooldown;
-			public final ForgeConfigSpec.IntValue maxInputOutput;
-
-			protected TankUpgradeConfig(ForgeConfigSpec.Builder builder) {
-				builder.comment("Tank Upgrade" + SETTINGS).push("tankUpgrade");
-				capacityPerSlotRow = builder.comment("Capacity in mB the tank upgrade will have per row of backpack slots").defineInRange("capacityPerSlotRow", 2000, 500, 20000);
-				stackMultiplierRatio = builder.comment("Ratio that gets applied (multiplies) to inventory stack multiplier before this is applied to tank capacity. Value lower than 1 makes stack multiplier affect the capacity less, higher makes it affect the capacity more. 0 turns off stack multiplier affecting tank capacity").defineInRange("stackMultiplierRatio", 1D, 0D, 5D);
-				autoFillDrainContainerCooldown = builder.comment("Cooldown between fill/drain actions done on fluid containers in tank slots. Only fills/drains one bucket worth to/from container after this cooldown and then waits again.").defineInRange("autoFillDrainContainerCooldown", 20, 1, 100);
-				maxInputOutput = builder.comment("How much mB can be transfered in / out per operation. This is a base transfer rate and same as max tank capacity gets multiplied by number of rows in backpack and stack multiplier.").defineInRange("maxInputOutput", 20, 1, 1000);
-				builder.pop();
-			}
-		}
-
-		public static class BatteryUpgradeConfig {
-			public final ForgeConfigSpec.IntValue energyPerSlotRow;
-			public final ForgeConfigSpec.DoubleValue stackMultiplierRatio;
-			public final ForgeConfigSpec.IntValue maxInputOutput;
-
-			protected BatteryUpgradeConfig(ForgeConfigSpec.Builder builder) {
-				builder.comment("Tank Upgrade" + SETTINGS).push("tankUpgrade");
-				energyPerSlotRow = builder.comment("Energy in FE the battery upgrade will have per row of backpack slots").defineInRange("energyPerSlotRow", 10000, 500, 50000);
-				stackMultiplierRatio = builder.comment("Ratio that gets applied (multiplies) to inventory stack multiplier before this is applied to max energy of the battery and max in/out. Value lower than 1 makes stack multiplier affect the max energy less, higher makes it affect the max energy more. 0 turns off stack multiplier affecting battery upgrade").defineInRange("stackMultiplierRatio", 1D, 0D, 5D);
-				maxInputOutput = builder.comment("How much FE can be transfered in / out per operation. This is a base transfer rate and same as max storage gets multiplied by number of rows in backpack and stack multiplier.").defineInRange("maxInputOutput", 20, 1, 1000);
-				builder.pop();
 			}
 		}
 
@@ -283,122 +297,167 @@ public class Config {
 			}
 		}
 
-		public static class AutoSmeltingUpgradeConfig extends SmeltingUpgradeConfigBase {
-			public final ForgeConfigSpec.IntValue inputFilterSlots;
-			public final ForgeConfigSpec.IntValue inputFilterSlotsInRow;
-			public final ForgeConfigSpec.IntValue fuelFilterSlots;
-			public final ForgeConfigSpec.IntValue fuelFilterSlotsInRow;
-
-			public AutoSmeltingUpgradeConfig(ForgeConfigSpec.Builder builder) {
-				super(builder, "Auto-Smelting Upgrade", "autoSmeltingUpgrade");
-				inputFilterSlots = builder.comment("Number of input filter slots").defineInRange("inputFilterSlots", 8, 1, 20);
-				inputFilterSlotsInRow = builder.comment("Number of input filter slots displayed in a row").defineInRange("inputFilterSlotsInRow", 4, 1, 6);
-				fuelFilterSlots = builder.comment("Number of fuel filter slots").defineInRange("fuelFilterSlots", 4, 1, 20);
-				fuelFilterSlotsInRow = builder.comment("Number of fuel filter slots displayed in a row").defineInRange("fuelFilterSlotsInRow", 4, 1, 6);
-				builder.pop();
-			}
-		}
-
-		public static class SmeltingUpgradeConfig extends SmeltingUpgradeConfigBase {
-			public SmeltingUpgradeConfig(ForgeConfigSpec.Builder builder) {
-				super(builder, "Smelting Upgrade", "smeltingUpgrade");
-				builder.pop();
-			}
-		}
-
-		public static class SmeltingUpgradeConfigBase {
-			public final ForgeConfigSpec.DoubleValue smeltingSpeedMultiplier;
-			public final ForgeConfigSpec.DoubleValue fuelEfficiencyMultiplier;
-
-			protected SmeltingUpgradeConfigBase(ForgeConfigSpec.Builder builder, final String upgradeName, String path) {
-				builder.comment(upgradeName + SETTINGS).push(path);
-				smeltingSpeedMultiplier = builder.comment("Smelting speed multiplier (1.0 equals speed at which vanilla furnace smelts items)")
-						.defineInRange("smeltingSpeedMultiplier", 1.0D, 0.25D, 4.0D);
-				fuelEfficiencyMultiplier = builder.comment("Fuel efficiency multiplier (1.0 equals speed at which it's used in vanilla furnace)")
-						.defineInRange("fuelEfficiencyMultiplier", 1.0D, 0.25D, 4.0D);
-			}
-		}
-
-		public static class MagnetUpgradeConfig extends FilteredUpgradeConfigBase {
-			public final ForgeConfigSpec.IntValue magnetRange;
-
-			public MagnetUpgradeConfig(ForgeConfigSpec.Builder builder, String name, String path, int defaultFilterSlots, int defaultSlotsInRow, int defaultMagnetRange) {
-				super(builder, name, path, defaultFilterSlots, defaultSlotsInRow);
-				magnetRange = builder.comment("Range around backpack in blocks at which magnet will pickup items").defineInRange("magnetRange", defaultMagnetRange, 1, 20);
-				builder.pop();
-			}
-		}
-
-		public static class FilteredUpgradeConfig extends FilteredUpgradeConfigBase {
-			public FilteredUpgradeConfig(ForgeConfigSpec.Builder builder, String name, String path, int defaultFilterSlots, int defaultSlotsInRow) {
-				super(builder, name, path, defaultFilterSlots, defaultSlotsInRow);
-				builder.pop();
-			}
-		}
-
-		public static class FilteredUpgradeConfigBase {
-			public final ForgeConfigSpec.IntValue filterSlots;
-			public final ForgeConfigSpec.IntValue slotsInRow;
-
-			protected FilteredUpgradeConfigBase(ForgeConfigSpec.Builder builder, String name, String path, int defaultFilterSlots, int defaultSlotsInRow) {
-				builder.comment(name + SETTINGS).push(path);
-				filterSlots = builder.comment("Number of " + name + "'s filter slots").defineInRange("filterSlots", defaultFilterSlots, 1, 20);
-				slotsInRow = builder.comment("Number of filter slots displayed in a row").defineInRange("slotsInRow", defaultSlotsInRow, 1, 6);
-			}
-		}
-
 		public static class BackpackConfig {
 			public final ForgeConfigSpec.IntValue inventorySlotCount;
 			public final ForgeConfigSpec.IntValue upgradeSlotCount;
 
 			public BackpackConfig(ForgeConfigSpec.Builder builder, String backpackPrefix, int inventorySlotCountDefault, int upgradeSlotCountDefault) {
-				builder.comment(backpackPrefix + " Backpack Settings").push(backpackPrefix.toLowerCase() + "Backpack");
+				builder.comment(backpackPrefix + " Backpack Settings").push(backpackPrefix.toLowerCase(Locale.ENGLISH) + "Backpack");
 				inventorySlotCount = builder.comment("Number of inventory slots in the backpack").defineInRange("inventorySlotCount", inventorySlotCountDefault, 1, 144);
 				upgradeSlotCount = builder.comment("Number of upgrade slots in the backpack").defineInRange("upgradeSlotCount", upgradeSlotCountDefault, 0, 10);
 				builder.pop();
 			}
 		}
 
-		public static class EnabledItems {
-			private final ForgeConfigSpec.ConfigValue<List<String>> itemsEnableList;
-			private final Map<String, Boolean> enabledMap = new ConcurrentHashMap<>();
+		public static class NoInteractionBlocks {
+			private final ForgeConfigSpec.ConfigValue<List<String>> noInteractionBlocksList;
+			private boolean initialized = false;
+			private Set<Block> noInteractionBlocksSet = null;
 
-			EnabledItems(ForgeConfigSpec.Builder builder) {
-				itemsEnableList = builder.comment("Disable / enable any items here (disables their recipes)").define("enabledItems", new ArrayList<>());
+			NoInteractionBlocks(ForgeConfigSpec.Builder builder) {
+				noInteractionBlocksList = builder.comment("List of blocks that inventory interaction upgrades can't interact with - e.g. \"minecraft:shulker_box\"").define("noInteractionBlocks", new ArrayList<>());
 			}
 
-			public boolean isItemEnabled(Item item) {
-				return RegistryHelper.getRegistryName(item).map(rn -> isItemEnabled(rn.getPath())).orElse(false);
-			}
-
-			public boolean isItemEnabled(String itemRegistryName) {
-				if (!COMMON_SPEC.isLoaded()) {
+			public boolean isBlockInteractionDisallowed(Block block) {
+				if (!COMMON.specification.isLoaded()) {
 					return true;
 				}
-				if (enabledMap.isEmpty()) {
-					loadEnabledMap();
+				if (!initialized) {
+					loadDisallowedSet();
 				}
-				return enabledMap.computeIfAbsent(itemRegistryName, irn -> {
-					addEnabledItemToConfig(itemRegistryName);
-					return true;
-				});
+				return noInteractionBlocksSet.contains(block);
 			}
 
-			private void addEnabledItemToConfig(String itemRegistryName) {
-				itemsEnableList.get().add(itemRegistryName + ":true");
-				COMMON_SPEC.save();
-			}
+			private void loadDisallowedSet() {
+				initialized = true;
+				noInteractionBlocksSet = new HashSet<>();
 
-			private void loadEnabledMap() {
-				for (String itemEnabled : itemsEnableList.get()) {
-					String[] data = itemEnabled.split(":");
-					if (data.length == 2) {
-						enabledMap.put(data[0], Boolean.valueOf(data[1]));
-					} else {
-						SophisticatedBackpacks.LOGGER.error("Wrong data for enabledItems - expected name:true/false when {} was provided", itemEnabled);
+				for (String disallowedItemName : noInteractionBlocksList.get()) {
+					ResourceLocation registryName = new ResourceLocation(disallowedItemName);
+					if (Registry.BLOCK.containsKey(registryName)) {
+						noInteractionBlocksSet.add(Registry.BLOCK.get(registryName));
 					}
 				}
 			}
 		}
+
+		public static class NoConnectionBlocks {
+			private final ForgeConfigSpec.ConfigValue<List<? extends String>> noConnectionBlocksList;
+			private boolean initialized = false;
+			private Set<Block> noConnnectionBlocksSet = null;
+
+			NoConnectionBlocks(ForgeConfigSpec.Builder builder) {
+				noConnectionBlocksList = builder.comment("List of blocks that are not allowed to connect to backpacks - e.g. \"refinedstorage:external_storage\"")
+						.defineList("noConnectionBlocks", new ArrayList<>(), mapping -> ((String) mapping).matches(REGISTRY_NAME_MATCHER));
+			}
+
+			public boolean isBlockConnectionDisallowed(Block block) {
+				if (!COMMON.specification.isLoaded()) {
+					return true;
+				}
+				if (!initialized) {
+					loadDisallowedSet();
+				}
+				return noConnnectionBlocksSet.contains(block);
+			}
+
+			private void loadDisallowedSet() {
+				initialized = true;
+				noConnnectionBlocksSet = new HashSet<>();
+
+				for (String disallowedItemName : noConnectionBlocksList.get()) {
+					ResourceLocation registryName = new ResourceLocation(disallowedItemName);
+					if (Registry.BLOCK.containsKey(registryName)) {
+						noConnnectionBlocksSet.add(Registry.BLOCK.get(registryName));
+					}
+				}
+			}
+		}
+
+		public static class DisallowedItems {
+			private final ForgeConfigSpec.BooleanValue containerItemsDisallowed;
+			private final ForgeConfigSpec.ConfigValue<List<String>> disallowedItemsList;
+			private boolean initialized = false;
+			private Set<Item> disallowedItemsSet = null;
+
+			DisallowedItems(ForgeConfigSpec.Builder builder) {
+				disallowedItemsList = builder.comment("List of items that are not allowed to be put in backpacks - e.g. \"minecraft:shulker_box\"").define("disallowedItems", new ArrayList<>());
+				containerItemsDisallowed = builder.comment("Determines if container items (those that override canFitInsideContainerItems to false) are able to fit in backpacks")
+						.define("containerItemsDisallowed", false);
+			}
+
+			public boolean isItemDisallowed(Item item) {
+				if (!COMMON.specification.isLoaded()) {
+					return true;
+				}
+
+				if (!initialized) {
+					loadDisallowedSet();
+				}
+
+				if (Boolean.TRUE.equals(containerItemsDisallowed.get()) && !(item instanceof BackpackItem) && !item.canFitInsideContainerItems()) {
+					return true;
+				}
+
+				return disallowedItemsSet.contains(item);
+			}
+
+			private void loadDisallowedSet() {
+				initialized = true;
+				disallowedItemsSet = new HashSet<>();
+
+				for (String disallowedItemName : disallowedItemsList.get()) {
+					ResourceLocation registryName = new ResourceLocation(disallowedItemName);
+					if (Registry.ITEM.containsKey(registryName)) {
+						disallowedItemsSet.add(Registry.ITEM.get(registryName));
+					}
+				}
+			}
+		}
+	}
+
+	public static class Common extends BaseConfig {
+		public final ForgeConfigSpec.BooleanValue chestLootEnabled;
+
+		Common(ForgeConfigSpec.Builder builder) {
+			builder.comment("Common Settings").push("common");
+
+			chestLootEnabled = builder.comment("Turns on/off loot added to various vanilla chest loot tables").define("chestLootEnabled", true);
+			builder.pop();
+		}
+	}
+
+
+	private static <T extends BaseConfig> T register(Function<ForgeConfigSpec.Builder, T> factory, ModConfig.Type side) {
+		Pair<T, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(factory);
+
+		T config = specPair.getLeft();
+		config.specification = specPair.getRight();
+		CONFIGS.put(side, config);
+		return config;
+	}
+
+	public static void register() {
+		CLIENT = register(Common::new, ModConfig.Type.CLIENT);
+		COMMON = register(Server::new, ModConfig.Type.SERVER);
+
+		for (Map.Entry<ModConfig.Type, BaseConfig> pair : CONFIGS.entrySet()) {
+			ModLoadingContext.registerConfig(SophisticatedBackpacks.ID, pair.getKey(), pair.getValue().specification);
+		}
+
+		ModConfigEvents.loading(SophisticatedBackpacks.ID).register(Config::onConfigLoad);
+		ModConfigEvents.reloading(SophisticatedBackpacks.ID).register(Config::onConfigReload);
+	}
+
+	public static void onConfigLoad(ModConfig modConfig) {
+		for (Config.BaseConfig config : CONFIGS.values())
+			if (config.specification == modConfig.getSpec())
+				config.onConfigLoad();
+	}
+
+	public static void onConfigReload(ModConfig modConfig) {
+		for (Config.BaseConfig config : CONFIGS.values())
+			if (config.specification == modConfig.getSpec())
+				config.onConfigReload();
 	}
 }

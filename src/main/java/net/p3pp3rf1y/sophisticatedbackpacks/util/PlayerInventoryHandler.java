@@ -1,47 +1,64 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.util;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.Collections;
+import java.util.Set;
 
 public class PlayerInventoryHandler {
-	private final Function<PlayerEntity, Integer> getSlotCount;
-	private final BiFunction<PlayerEntity, Integer, ItemStack> getStackInSlot;
-	private final IStackInSlotModifier setStackInSlot;
+	public static final Set<String> SINGLE_IDENTIFIER = Collections.singleton("");
+	private final IdentifierGetter identifiersGetter;
+	private final SlotCountGetter slotCountGetter;
+	private final SlotStackGetter slotStackGetter;
 	private final boolean visibleInGui;
 	private final boolean ownRenderer;
+	private final boolean accessibleByAnotherPlayer;
 
-	public PlayerInventoryHandler(Function<PlayerEntity, Integer> getSlotCount, BiFunction<PlayerEntity, Integer, ItemStack> getStackInSlot, IStackInSlotModifier setStackInSlot, boolean visibleInGui, boolean ownRenderer) {
-		this.getSlotCount = getSlotCount;
-		this.getStackInSlot = getStackInSlot;
-		this.setStackInSlot = setStackInSlot;
+	public PlayerInventoryHandler(IdentifierGetter identifiersGetter, SlotCountGetter slotCountGetter, SlotStackGetter slotStackGetter, boolean visibleInGui, boolean ownRenderer, boolean accessibleByAnotherPlayer) {
+		this.identifiersGetter = identifiersGetter;
+		this.slotCountGetter = slotCountGetter;
+		this.slotStackGetter = slotStackGetter;
 		this.visibleInGui = visibleInGui;
 		this.ownRenderer = ownRenderer;
+		this.accessibleByAnotherPlayer = accessibleByAnotherPlayer;
 	}
 
-	public int getSlotCount(PlayerEntity player) {
-		return getSlotCount.apply(player);
+	public int getSlotCount(Player player, String identifier) {
+		return slotCountGetter.getSlotCount(player, identifier);
 	}
 
-	public ItemStack getStackInSlot(PlayerEntity player, int slot) {
-		return getStackInSlot.apply(player, slot);
+	public ItemStack getStackInSlot(Player player, String identifier, int slot) {
+		return slotStackGetter.getStackInSlot(player, identifier, slot);
 	}
 
 	public boolean isVisibleInGui() {
 		return visibleInGui;
 	}
 
-	public void setStackInSlot(PlayerEntity player, int slot, ItemStack stack) {
-		setStackInSlot.accept(player, slot, stack);
+	// Need player parameter for Trinket
+	public Set<String> getIdentifiers(Player player, long gameTime) {
+		return identifiersGetter.getIdentifiers(player, gameTime);
 	}
 
 	public boolean hasItsOwnRenderer() {
 		return ownRenderer;
 	}
 
-	public interface IStackInSlotModifier {
-		void accept(PlayerEntity player, int slot, ItemStack stack);
+	public boolean isAccessibleByAnotherPlayer() {
+		return accessibleByAnotherPlayer;
 	}
+
+	public interface IdentifierGetter {
+		Set<String> getIdentifiers(Player player, Long gameTime);
+	}
+
+	public interface SlotCountGetter {
+		int getSlotCount(Player player, String identifier);
+	}
+
+	public interface SlotStackGetter {
+		ItemStack getStackInSlot(Player player, String identifier, int slot);
+	}
+
 }

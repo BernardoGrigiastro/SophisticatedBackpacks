@@ -1,8 +1,9 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.backpack;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.util.Util;
+import net.minecraft.Util;
+import net.minecraft.core.Registry;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -20,12 +21,12 @@ public class BackpackAccessLogger {
 	private static long lastCacheRefresh = 0;
 	private static final Map<String, Set<AccessLogRecord>> playerLogCache = new HashMap<>();
 
-	public static void logPlayerAccess(PlayerEntity player, Item backpackItem, UUID backpackUuid, String backpackName, int clothColor, int trimColor, int columnsTaken) {
-		if (player.level.isClientSide) {
+	public static void logPlayerAccess(Player player, Item backpackItem, UUID backpackUuid, String backpackName, int clothColor, int trimColor, int columnsTaken) {
+		if (player.getLevel().isClientSide) {
 			return;
 		}
 		//noinspection ConstantConditions - at this point the registry name of item exists for sure otherwise the player wouldn't be able to open the backpack
-		BackpackStorage.get().putAccessLog(new AccessLogRecord(backpackItem.getRegistryName(), backpackUuid, player.getDisplayName().getString(), backpackName, clothColor, trimColor, Util.getEpochMillis(), columnsTaken));
+		BackpackStorage.get().putAccessLog(new AccessLogRecord(Registry.ITEM.getKey(backpackItem), backpackUuid, player.getDisplayName().getString(), backpackName, clothColor, trimColor, Util.getEpochMillis(), columnsTaken));
 	}
 
 	public static Set<String> getPlayerNames() {

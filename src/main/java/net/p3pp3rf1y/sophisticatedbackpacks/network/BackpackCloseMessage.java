@@ -1,27 +1,33 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.network;
 
-import net.minecraft.entity.player.ServerPlayerEntity;
-import net.minecraftforge.fml.network.NetworkEvent;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.p3pp3rf1y.sophisticatedbackpacks.common.gui.BackpackContainer;
-
-import javax.annotation.Nullable;
-import java.util.function.Supplier;
+import net.p3pp3rf1y.sophisticatedcore.network.SimplePacketBase;
 
 @SuppressWarnings("java:S1118")
-public class BackpackCloseMessage {
-	static void onMessage(Supplier<NetworkEvent.Context> contextSupplier) {
-		NetworkEvent.Context context = contextSupplier.get();
-		context.enqueueWork(() -> handleMessage(context.getSender()));
-		context.setPacketHandled(true);
+public class BackpackCloseMessage  extends SimplePacketBase {
+	public BackpackCloseMessage() {}
+
+	public BackpackCloseMessage(FriendlyByteBuf buffer) {}
+
+	@Override
+	public void write(FriendlyByteBuf buffer) {
 	}
 
-	private static void handleMessage(@Nullable ServerPlayerEntity player) {
-		if (player == null) {
-			return;
-		}
+	@Override
+	public boolean handle(Context context) {
+		context.enqueueWork(() -> {
+			ServerPlayer player = context.getSender();
+			if (player == null) {
+				return;
+			}
 
-		if (player.containerMenu instanceof BackpackContainer) {
-			player.closeContainer();
-		}
+			if (player.containerMenu instanceof BackpackContainer) {
+				player.closeContainer();
+			}
+		});
+		return true;
 	}
+
 }

@@ -1,29 +1,29 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.upgrades.inception;
 
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandlerItem;
-import net.minecraftforge.fluids.capability.templates.EmptyFluidHandler;
+import io.github.fabricators_of_create.porting_lib.util.FluidStack;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
+import net.fabricmc.fabric.api.transfer.v1.storage.base.CombinedStorage;
+import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.material.Fluid;
+import net.p3pp3rf1y.sophisticatedcore.api.IStorageFluidHandler;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiFunction;
+import javax.annotation.Nullable;
 
-public class InceptionFluidHandler implements IFluidHandlerItem {
+public class InceptionFluidHandler implements IStorageFluidHandler {
 	@Nullable
-	private final IFluidHandlerItem wrappedFluidHandler;
+	private final IStorageFluidHandler wrappedFluidHandler;
 	private final InventoryOrder inventoryOrder;
 	private final SubBackpacksHandler subBackpacksHandler;
-	private IFluidHandler[] fluidHandlers;
-	protected int[] baseIndex;
-	protected int tankCount;
+	private IStorageFluidHandler[] fluidHandlers;
 	private final ItemStack backpack;
 
-	public InceptionFluidHandler(
-			@Nullable IFluidHandlerItem wrappedFluidHandler, ItemStack backpack, InventoryOrder inventoryOrder, SubBackpacksHandler subBackpacksHandler) {
+	public InceptionFluidHandler(@Nullable IStorageFluidHandler wrappedFluidHandler, ItemStack backpack, InventoryOrder inventoryOrder, SubBackpacksHandler subBackpacksHandler) {
 		this.wrappedFluidHandler = wrappedFluidHandler;
 		this.backpack = backpack;
 		this.inventoryOrder = inventoryOrder;
@@ -33,7 +33,7 @@ public class InceptionFluidHandler implements IFluidHandlerItem {
 	}
 
 	private void refreshHandlers() {
-		List<IFluidHandler> handlers = new ArrayList<>();
+		List<IStorageFluidHandler> handlers = new ArrayList<>();
 		if (wrappedFluidHandler != null && inventoryOrder == InventoryOrder.MAIN_FIRST) {
 			handlers.add(wrappedFluidHandler);
 		}
@@ -41,105 +41,72 @@ public class InceptionFluidHandler implements IFluidHandlerItem {
 		if (wrappedFluidHandler != null && inventoryOrder == InventoryOrder.INCEPTED_FIRST) {
 			handlers.add(wrappedFluidHandler);
 		}
-		fluidHandlers = handlers.toArray(new IFluidHandler[] {});
-		baseIndex = new int[fluidHandlers.length];
-		int index = 0;
-		for (int i = 0; i < fluidHandlers.length; i++) {
-			index += fluidHandlers[i].getTanks();
-			baseIndex[i] = index;
-		}
-		tankCount = index;
+		fluidHandlers = handlers.toArray(new IStorageFluidHandler[] {});
 	}
 
 	@Override
-	public int getTanks() {
-		return tankCount;
-	}
-
-	private int getHandlerIndexForTank(int slot) {
-		if (slot < 0) {
-			return -1;
-		}
-
-		for (int i = 0; i < baseIndex.length; i++) {
-			if (slot - baseIndex[i] < 0) {
-				return i;
+	public long insert(FluidVariant resource, long maxFill, TransactionContext ctx, boolean ignoreInOutLimit) {
+		long remaining = maxFill;
+		for (IStorageFluidHandler fluidHandler : fluidHandlers) {
+			remaining -= fluidHandler.insert(resource, remaining, ctx, ignoreInOutLimit);
+			if (remaining <= 0) {
+				return maxFill;
 			}
 		}
-		return -1;
-	}
 
-	protected IFluidHandler getHandlerFromIndex(int index) {
-		if (index < 0 || index >= fluidHandlers.length) {
-			return EmptyFluidHandler.INSTANCE;
-		}
-		return fluidHandlers[index];
-	}
-
-	protected int getTankFromIndex(int tank, int handlerIndex) {
-		if (handlerIndex <= 0 || handlerIndex >= baseIndex.length) {
-			return tank;
-		}
-		return tank - baseIndex[handlerIndex - 1];
-	}
-
-	private <T> T getFluidHandlerValue(int overallTank, BiFunction<IFluidHandler, Integer, T> getValue) {
-		int handlerIndex = getHandlerIndexForTank(overallTank);
-		return getValue.apply(getHandlerFromIndex(handlerIndex), getTankFromIndex(overallTank, handlerIndex));
-	}
-
-	@Nonnull
-	@Override
-	public FluidStack getFluidInTank(int tank) {
-		return getFluidHandlerValue(tank, IFluidHandler::getFluidInTank);
+		return maxFill - remaining;
 	}
 
 	@Override
-	public int getTankCapacity(int tank) {
-		return getFluidHandlerValue(tank, IFluidHandler::getTankCapacity);
+	public long insert(FluidVariant resource, long maxAmount, TransactionContext transaction) {
+		return insert(resource, maxAmount, transaction, false);
 	}
 
 	@Override
-	public boolean isFluidValid(int tank, @Nonnull FluidStack stack) {
-		return getFluidHandlerValue(tank, (h, t) -> h.isFluidValid(t, stack));
-	}
-
-	@Override
-	public int fill(FluidStack resource, FluidAction action) {
-		int filled = 0;
-		FluidStack toFill = resource;
-		for (IFluidHandler fluidHandler : fluidHandlers) {
-			filled += fluidHandler.fill(toFill, action);
-			if (filled == resource.getAmount()) {
-				return resource.getAmount();
+	public FluidStack extract(TagKey<Fluid> resourceTag, long maxDrain, TransactionContext ctx, boolean ignoreInOutLimit) {
+		FluidStack drainedStack = FluidStack.EMPTY;
+		FluidStack stackToDrain = FluidStack.EMPTY;
+		for (IStorageFluidHandler fluidHandler : fluidHandlers) {
+			if (drainedStack.isEmpty()) {
+				drainedStack = fluidHandler.extract(resourceTag, maxDrain, ctx, ignoreInOutLimit);
+				if (drainedStack.getAmount() == maxDrain) {
+					return drainedStack;
+				}
+				if (!drainedStack.isEmpty()) {
+					stackToDrain = new FluidStack(drainedStack, maxDrain - drainedStack.getAmount());
+				}
+			} else {
+				long amountDrained = fluidHandler.extract(stackToDrain, ctx, ignoreInOutLimit).getAmount();
+				stackToDrain.shrink(amountDrained);
+				drainedStack.grow(amountDrained);
+				if (drainedStack.getAmount() == maxDrain) {
+					return drainedStack;
+				}
 			}
-			toFill = new FluidStack(toFill.getFluid(), resource.getAmount() - filled);
 		}
 
-		return filled;
+		return drainedStack;
 	}
 
-	@Nonnull
 	@Override
-	public FluidStack drain(FluidStack resource, FluidAction action) {
-		int drained = 0;
+	public FluidStack extract(FluidStack resource, TransactionContext ctx, boolean ignoreInOutLimit) {
+		long drained = 0;
 		FluidStack toDrain = resource;
-		for (IFluidHandler fluidHandler : fluidHandlers) {
-			drained += fluidHandler.drain(toDrain, action).getAmount();
+		for (IStorageFluidHandler fluidHandler : fluidHandlers) {
+			drained += fluidHandler.extract(toDrain, ctx, ignoreInOutLimit).getAmount();
 			if (drained == resource.getAmount()) {
 				return resource;
 			}
-			toDrain = new FluidStack(toDrain.getFluid(), resource.getAmount() - drained);
+			toDrain = new FluidStack(toDrain, resource.getAmount() - drained);
 		}
 
-		return drained == 0 ? FluidStack.EMPTY : new FluidStack(resource.getFluid(), drained);
+		return drained == 0 ? FluidStack.EMPTY : new FluidStack(resource, drained);
 	}
 
-	@Nonnull
 	@Override
-	public FluidStack drain(int maxDrain, FluidAction action) {
-		for (IFluidHandler fluidHandler : fluidHandlers) {
-			FluidStack drained = fluidHandler.drain(maxDrain, action);
+	public FluidStack extract(int maxDrain, TransactionContext ctx, boolean ignoreInOutLimit) {
+		for (IStorageFluidHandler fluidHandler : fluidHandlers) {
+			FluidStack drained = fluidHandler.extract(maxDrain, ctx, ignoreInOutLimit);
 			if (!drained.isEmpty()) {
 				return drained;
 			}
@@ -147,9 +114,27 @@ public class InceptionFluidHandler implements IFluidHandlerItem {
 		return FluidStack.EMPTY;
 	}
 
-	@Nonnull
 	@Override
-	public ItemStack getContainer() {
-		return backpack;
+	public long extract(FluidVariant resource, long maxDrain, TransactionContext ctx, boolean ignoreInOutLimit) {
+		long remaining = maxDrain;
+		for (IStorageFluidHandler fluidHandler : fluidHandlers) {
+			remaining -= fluidHandler.extract(resource, remaining, ctx, ignoreInOutLimit);
+			if (remaining <= 0) {
+				return maxDrain;
+			}
+		}
+
+		return maxDrain - remaining;
+	}
+
+
+	@Override
+	public long extract(FluidVariant resource, long maxAmount, TransactionContext transaction) {
+		return extract(resource, maxAmount, transaction, false);
+	}
+
+	@Override
+	public Iterator<StorageView<FluidVariant>> iterator() {
+		return new CombinedStorage<>(List.of(fluidHandlers)).iterator();
 	}
 }

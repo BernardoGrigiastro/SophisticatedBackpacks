@@ -1,141 +1,102 @@
 package net.p3pp3rf1y.sophisticatedbackpacks.client.render;
 
-import com.mojang.blaze3d.matrix.MatrixStack;
-import com.mojang.blaze3d.vertex.IVertexBuilder;
-import net.minecraft.client.entity.player.AbstractClientPlayerEntity;
-import net.minecraft.client.renderer.IRenderTypeBuffer;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.entity.IEntityRenderer;
-import net.minecraft.client.renderer.entity.layers.LayerRenderer;
-import net.minecraft.client.renderer.entity.model.BipedModel;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.inventory.EquipmentSlotType;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.vector.Vector3d;
-import net.minecraft.util.math.vector.Vector3f;
-import net.p3pp3rf1y.sophisticatedbackpacks.SophisticatedBackpacks;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.IRenderedBatteryUpgrade;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.IRenderedTankUpgrade;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Vector3f;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.block.model.ItemTransforms;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
+import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.p3pp3rf1y.sophisticatedbackpacks.backpack.BackpackItem;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.wrapper.BackpackRenderInfo;
-import net.p3pp3rf1y.sophisticatedbackpacks.backpack.wrapper.TankPosition;
+import net.p3pp3rf1y.sophisticatedbackpacks.common.BackpackWrapperLookup;
 import net.p3pp3rf1y.sophisticatedbackpacks.util.PlayerInventoryProvider;
+import net.p3pp3rf1y.sophisticatedcore.api.IUpgradeRenderer;
+import net.p3pp3rf1y.sophisticatedcore.client.render.UpgradeRenderRegistry;
+import net.p3pp3rf1y.sophisticatedcore.renderdata.IUpgradeRenderData;
+import net.p3pp3rf1y.sophisticatedcore.renderdata.RenderInfo;
+import net.p3pp3rf1y.sophisticatedcore.renderdata.UpgradeRenderDataType;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import javax.annotation.Nullable;
 
-public class BackpackLayerRenderer<T extends LivingEntity, M extends BipedModel<T>> extends LayerRenderer<T, M> {
-	private static final float CHILD_Y_OFFSET = 0.3F;
-	private static final float CHILD_Z_OFFSET = 0.1F;
-	private static final float CHILD_SCALE = 0.55F;
-	private static final ResourceLocation TANK_GLASS_TEXTURE = new ResourceLocation(SophisticatedBackpacks.MOD_ID, "textures/entity/tank_glass.png");
-
-	private static final BackpackModel MODEL = new BackpackModel();
-	private static final TankGlassModel TANK_GLASS_MODEL = new TankGlassModel();
-
-	private static final Map<EntityType<?>, Vector3d> entityTranslations;
-
-	static {
-		entityTranslations = new HashMap<>();
-		entityTranslations.put(EntityType.ENDERMAN, new Vector3d(0, -0.8, 0));
-	}
-
-	public BackpackLayerRenderer(IEntityRenderer<T, M> entityRendererIn) {
+public class BackpackLayerRenderer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
+	public BackpackLayerRenderer(RenderLayerParent<T, M> entityRendererIn) {
 		super(entityRendererIn);
+		BackpackModelManager.initModels();
 	}
 
 	@Override
-	public void render(MatrixStack matrixStack, IRenderTypeBuffer buffer, int packedLight, T entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
-		if (entity instanceof AbstractClientPlayerEntity) {
-			AbstractClientPlayerEntity player = (AbstractClientPlayerEntity) entity;
-			PlayerInventoryProvider.getBackpackFromRendered(player).ifPresent(backpackRenderInfo -> {
+	public void render(PoseStack matrixStack, MultiBufferSource buffer, int packedLight, T entity, float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks, float netHeadYaw, float headPitch) {
+		if (entity instanceof AbstractClientPlayer player) {
+			PlayerInventoryProvider.get().getBackpackFromRendered(player).ifPresent(backpackRenderInfo -> {
 				matrixStack.pushPose();
-				boolean wearsArmor = !backpackRenderInfo.isArmorSlot() && !player.inventory.armor.get(EquipmentSlotType.CHEST.getIndex()).isEmpty();
 				ItemStack backpack = backpackRenderInfo.getBackpack();
-				renderBackpack(player, matrixStack, buffer, packedLight, backpack, wearsArmor);
+				IBackpackModel model = BackpackModelManager.getBackpackModel(backpack.getItem());
+				EquipmentSlot equipmentSlot = model.getRenderEquipmentSlot();
+				boolean wearsArmor = (equipmentSlot != EquipmentSlot.CHEST || !backpackRenderInfo.isArmorSlot()) && !player.getInventory().armor.get(equipmentSlot.getIndex()).isEmpty();
+				renderBackpack(getParentModel(), player, matrixStack, buffer, packedLight, backpack, wearsArmor, model);
 				matrixStack.popPose();
 			});
 		} else {
-			ItemStack chestStack = entity.getItemBySlot(EquipmentSlotType.CHEST);
+			ItemStack chestStack = entity.getItemBySlot(EquipmentSlot.CHEST);
 			if (chestStack.getItem() instanceof BackpackItem) {
-				renderBackpack(entity, matrixStack, buffer, packedLight, chestStack, false);
+				renderBackpack(getParentModel(), entity, matrixStack, buffer, packedLight, chestStack, false, BackpackModelManager.getBackpackModel(chestStack.getItem()));
 			}
 		}
 	}
 
-	public static void renderBackpack(LivingEntity livingEntity, MatrixStack matrixStack, IRenderTypeBuffer buffer, int packedLight, ItemStack backpack, boolean wearsArmor) {
-		if (livingEntity.isCrouching()) {
-			matrixStack.translate(0D, 0.2D, 0D);
-			matrixStack.mulPose(Vector3f.XP.rotationDegrees(90F / (float) Math.PI));
-		}
+	public static <T extends LivingEntity, M extends EntityModel<T>> void renderBackpack(M parentModel, LivingEntity livingEntity, PoseStack matrixStack, MultiBufferSource buffer, int packedLight, ItemStack backpack, boolean wearsArmor, IBackpackModel model) {
+		model.translateRotateAndScale(parentModel, livingEntity, matrixStack, wearsArmor);
 
-		matrixStack.mulPose(Vector3f.YP.rotationDegrees(180));
-		float zOffset = wearsArmor ? -0.35f : -0.3f;
-		float yOffset = -0.75f;
-
-		if (livingEntity.isBaby()) {
-			zOffset += CHILD_Z_OFFSET;
-			yOffset = CHILD_Y_OFFSET;
-		}
-
-		matrixStack.translate(0, yOffset, zOffset);
-
-		if (livingEntity.isBaby()) {
-			matrixStack.scale(CHILD_SCALE, CHILD_SCALE, CHILD_SCALE);
-		}
-
-		if (entityTranslations.containsKey(livingEntity.getType())) {
-			Vector3d translVector = entityTranslations.get(livingEntity.getType());
-			matrixStack.translate(translVector.x(), translVector.y(), translVector.z());
-		}
-
-		backpack.getCapability(CapabilityBackpackWrapper.getCapabilityInstance()).ifPresent(wrapper -> {
-			IVertexBuilder vertexBuilder = buffer.getBuffer(RenderType.entityCutoutNoCull(RenderHelper.BACKPACK_ENTITY_TEXTURE));
-
-			int clothColor = wrapper.getClothColor();
-			int borderColor = wrapper.getBorderColor();
-			Item backpackItem = backpack.getItem();
-
-			BackpackRenderInfo renderInfo = wrapper.getRenderInfo();
-			Set<TankPosition> tankPositions = renderInfo.getTankRenderInfos().keySet();
-			boolean showLeftTank = tankPositions.contains(TankPosition.LEFT);
-			boolean showRightTank = tankPositions.contains(TankPosition.RIGHT);
-			Optional<IRenderedBatteryUpgrade.BatteryRenderInfo> batteryRenderInfo = renderInfo.getBatteryRenderInfo();
-			MODEL.render(matrixStack, packedLight, vertexBuilder, clothColor, borderColor, backpackItem, showLeftTank, showRightTank, batteryRenderInfo.isPresent());
-
-			renderFluids(matrixStack, buffer, packedLight, renderInfo, showLeftTank, showRightTank);
-			batteryRenderInfo.ifPresent(info -> renderBatteryCharge(matrixStack, buffer, packedLight, info.getChargeRatio()));
+		BackpackWrapperLookup.get(backpack).ifPresent(wrapper -> {
+			int clothColor = wrapper.getMainColor();
+			int borderColor = wrapper.getAccentColor();
+			model.render(parentModel, livingEntity, matrixStack, buffer, packedLight, clothColor, borderColor, backpack.getItem(), wrapper.getRenderInfo());
+			renderUpgrades(livingEntity, wrapper.getRenderInfo());
+			renderItemShown(matrixStack, buffer, packedLight, wrapper.getRenderInfo(), livingEntity.getLevel());
 		});
 	}
 
-	private static void renderBatteryCharge(MatrixStack matrixStack, IRenderTypeBuffer buffer, int packedLight, float chargeRatio) {
-		matrixStack.pushPose();
-		matrixStack.translate(0, 1.5, 0);
-		RenderHelper.renderBatteryCharge(matrixStack, buffer, packedLight, chargeRatio);
-		matrixStack.popPose();
+	private static void renderItemShown(PoseStack matrixStack, MultiBufferSource buffer, int packedLight, RenderInfo renderInfo, @Nullable Level level) {
+		renderInfo.getItemDisplayRenderInfo().getDisplayItem().ifPresent(displayItem -> {
+			matrixStack.pushPose();
+			matrixStack.translate(0, 0.9, -0.25);
+			matrixStack.scale(0.5f, 0.5f, 0.5f);
+			matrixStack.mulPose(Vector3f.ZP.rotationDegrees(180f + displayItem.getRotation()));
+			Minecraft.getInstance().getItemRenderer().renderStatic(displayItem.getItem(), ItemTransforms.TransformType.FIXED, packedLight, OverlayTexture.NO_OVERLAY, matrixStack, buffer, 0);
+			matrixStack.popPose();
+		});
 	}
 
-	private static void renderFluids(MatrixStack matrixStack, IRenderTypeBuffer buffer, int packedLight, BackpackRenderInfo renderInfo, boolean showLeftTank, boolean showRightTank) {
-		IVertexBuilder vertexBuilder;
-		matrixStack.pushPose();
-		matrixStack.scale(1 / 2f, 6 / 10f, 1 / 2f);
-		vertexBuilder = buffer.getBuffer(RenderType.entityCutoutNoCull(TANK_GLASS_TEXTURE));
-		TANK_GLASS_MODEL.render(matrixStack, vertexBuilder, packedLight, showLeftTank, showRightTank);
-		if (showLeftTank) {
-			IRenderedTankUpgrade.TankRenderInfo tankRenderInfo = renderInfo.getTankRenderInfos().get(TankPosition.LEFT);
-			tankRenderInfo.getFluid().ifPresent(fluid -> RenderHelper.renderFluid(matrixStack, buffer, packedLight, fluid, tankRenderInfo.getFillRatio(), -14.5F, 37.5F, -1, -2F));
+	private static void renderUpgrades(LivingEntity livingEntity, RenderInfo renderInfo) {
+		if (Minecraft.getInstance().isPaused() || livingEntity.getLevel().random.nextInt(32) != 0) {
+			return;
 		}
-		if (showRightTank) {
-			IRenderedTankUpgrade.TankRenderInfo tankRenderInfo = renderInfo.getTankRenderInfos().get(TankPosition.RIGHT);
-			tankRenderInfo.getFluid().ifPresent(fluid -> RenderHelper.renderFluid(matrixStack, buffer, packedLight, fluid, tankRenderInfo.getFillRatio(), 11F, 37.5F, -1, -2F));
-		}
-		matrixStack.popPose();
+
+		Map<UpgradeRenderDataType<?>, IUpgradeRenderData> upgradeRenderData = new HashMap<>(renderInfo.getUpgradeRenderData());
+		upgradeRenderData.forEach((type, data) -> UpgradeRenderRegistry.getUpgradeRenderer(type).ifPresent(renderer -> renderUpgrade(renderer, livingEntity, type, data)));
 	}
 
+	private static Vector3f getBackpackMiddleFacePoint(LivingEntity livingEntity, Vector3f vector) {
+		Vector3f point = vector.copy();
+		point.transform(Vector3f.XP.rotationDegrees(livingEntity.isCrouching() ? 25 : 0));
+		point.add(0, 0.8f, livingEntity.isCrouching() ? 0.9f : 0.7f);
+		point.transform(Vector3f.YN.rotationDegrees(livingEntity.yBodyRot - 180));
+		point.add(new Vector3f(livingEntity.position()));
+		return point;
+	}
+
+	private static <T extends IUpgradeRenderData> void renderUpgrade(IUpgradeRenderer<T> renderer, LivingEntity livingEntity, UpgradeRenderDataType<?> type, IUpgradeRenderData data) {
+		//noinspection unchecked
+		type.cast(data).ifPresent(renderData -> renderer.render(livingEntity.getLevel(), livingEntity.getLevel().random, vector3d -> getBackpackMiddleFacePoint(livingEntity, vector3d), (T) renderData));
+	}
 }

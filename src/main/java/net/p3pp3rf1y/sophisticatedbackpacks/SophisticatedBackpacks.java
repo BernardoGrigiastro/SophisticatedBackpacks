@@ -1,71 +1,53 @@
 package net.p3pp3rf1y.sophisticatedbackpacks;
 
-import net.minecraft.item.ItemGroup;
-import net.minecraft.world.World;
-import net.minecraft.world.server.ServerWorld;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.event.server.FMLServerStartedEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.p3pp3rf1y.sophisticatedbackpacks.api.CapabilityBackpackWrapper;
-import net.p3pp3rf1y.sophisticatedbackpacks.client.ClientProxy;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackType;
 import net.p3pp3rf1y.sophisticatedbackpacks.command.SBPCommand;
-import net.p3pp3rf1y.sophisticatedbackpacks.common.CommonProxy;
-import net.p3pp3rf1y.sophisticatedbackpacks.data.DataGenerators;
+import net.p3pp3rf1y.sophisticatedbackpacks.common.CommonEventHandler;
+import net.p3pp3rf1y.sophisticatedbackpacks.compat.litematica.LitematicaCompat;
 import net.p3pp3rf1y.sophisticatedbackpacks.init.ModCompat;
-import net.p3pp3rf1y.sophisticatedbackpacks.init.ModItems;
-import net.p3pp3rf1y.sophisticatedbackpacks.init.ModLoot;
-import net.p3pp3rf1y.sophisticatedbackpacks.network.PacketHandler;
-import net.p3pp3rf1y.sophisticatedbackpacks.util.RecipeHelper;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.p3pp3rf1y.sophisticatedbackpacks.network.SBPPacketHandler;
+import net.p3pp3rf1y.sophisticatedbackpacks.registry.RegistryLoader;
 
-@Mod(SophisticatedBackpacks.MOD_ID)
-public class SophisticatedBackpacks {
-	public static final String MOD_ID = "sophisticatedbackpacks";
-	public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-	public static final CommonProxy PROXY = DistExecutor.safeRunForDist(() -> ClientProxy::new, () -> CommonProxy::new);
-	public static final ItemGroup ITEM_GROUP = new SBItemGroup();
+public class SophisticatedBackpacks implements ModInitializer {
+	public static final String ID = "sophisticatedbackpacks";
+	public static final Logger LOGGER = LoggerFactory.getLogger(ID);
+
+	private final RegistryLoader registryLoader = new RegistryLoader();
+	public final CommonEventHandler commonEventHandler = new CommonEventHandler();
 
 	@SuppressWarnings("java:S1118") //needs to be public for mod to work
 	public SophisticatedBackpacks() {
-		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
-		ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
-		PROXY.registerHandlers();
-		IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
-		modBus.addListener(SophisticatedBackpacks::setup);
-		modBus.addListener(DataGenerators::gatherData);
-		modBus.addListener(Config.COMMON::onConfigReload);
-		ModLoot.init();
-
-		IEventBus eventBus = MinecraftForge.EVENT_BUS;
-		eventBus.addListener(SophisticatedBackpacks::serverStarted);
-		eventBus.addListener(SophisticatedBackpacks::registerCommands);
 	}
 
-	private static void setup(FMLCommonSetupEvent event) {
-		CapabilityBackpackWrapper.register();
-		PacketHandler.init();
+	@Override
+	public void onInitialize() {
+		Config.register();
+		commonEventHandler.registerHandlers();
+
 		ModCompat.initCompats();
-		ModItems.registerDispenseBehavior();
-		SBPCommand.registerArgumentTypes();
+		LitematicaCompat.alwaysInit();
+
+		SBPCommand.init();
+		SBPPacketHandler.init();
+
+		ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(registryLoader);
+
+		SBPPacketHandler.getChannel().initServerListener();
+		ModCompat.compatsSetup();
 	}
 
-	private static void serverStarted(FMLServerStartedEvent event) {
-		ServerWorld world = event.getServer().getLevel(World.OVERWORLD);
-		if (world != null) {
-			RecipeHelper.setWorld(world);
-		}
+	public static ResourceLocation getRL(String regName) {
+		return new ResourceLocation(getRegistryName(regName));
 	}
 
-	private static void registerCommands(RegisterCommandsEvent event) {
-		SBPCommand.register(event.getDispatcher());
+	public static String getRegistryName(String regName) {
+		return ID + ":" + regName;
 	}
+
 }
